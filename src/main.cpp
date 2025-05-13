@@ -18,7 +18,7 @@ const int SCREEN_HEIGHT_PX = 480;
 const int SCREEN_PADDING_PX = 10;
 
 // Chiều rộng làm việc thực tế (mét) và quy đổi sang pixel
-float working_width_real_meters = 4.0f; // Ví dụ: nông cụ rộng 4 mét
+float working_width_real_meters = 1.4f; // Ví dụ: nông cụ rộng 4 mét
 int working_width_px = 0;               // Chiều rộng làm việc đã scale sang pixel (sẽ được tính toán)
 
 // Hằng số cho chuyển đổi GPS
@@ -66,9 +66,8 @@ struct Segment
 };
 
 // Các biến điều khiển đường đi (có thể thay đổi qua Serial)
-int StartPoint = 0;        // Chỉ số đỉnh bắt đầu gần nhất (mặc định là 0)
-int StartDir = 0;          // Chỉ số đỉnh bắt đầu của cạnh định hướng (mặc định là cạnh 0->1)
-// int StartDir = 1; // Hướng bắt đầu (0: trên->dưới, 1: dưới->lên) - Hiện không dùng trực tiếp trong generatePath
+int StartPoint = 0; // Chỉ số đỉnh bắt đầu gần nhất (mặc định là 0)
+int StartDir = 0;   // Chỉ số đỉnh bắt đầu của cạnh định hướng (mặc định là cạnh 0->1)
 
 // Lớp HMI_Display (như bạn cung cấp)
 class HMI_Display
@@ -169,7 +168,6 @@ enum ProgramState
 ProgramState currentState = WAITING_FOR_POINTS;
 
 // --- Khai báo hàm ---
-// void generatePath(const std::vector<Point> &polygon_vertices, double workingWidth, int startVertexIndex, int edgeChoiceForOrientation, HMI_Display &hmi_display);
 void generatePath(const std::vector<Point> &polygon_vertices, double workingWidth, int startVertexIndex, int startDirGlobal, HMI_Display &hmi_display);
 void calculateScaleAndTransformPoints();
 Point transformGpsToScreen(GpsPoint gp);
@@ -178,7 +176,7 @@ void drawFieldAndPath();
 void resetAndClear();
 double degreesToRadians(double degrees);
 bool segmentIntersection(const Point &p1, const Point &p2, const Point &p3, const Point &p4, Point &intersection_point);
-std::vector<Segment> clipLineWithPolygon(const Point &line_origin, const Point &line_dir_normalized, const std::vector<Point> &polygon_vertices);
+std::vector<Segment> clipLineWithPolygon(const Point &line_origin, const Point &line_dir_normalized, const std::vector<Point> &polygon_vertices, double current_working_width);
 bool isInside(const Point &p, const std::vector<Point> &polygon);
 
 // --- Hàm setup ---
@@ -288,10 +286,14 @@ void handlePointInput()
         Serial.println(F("Loi: Chi so diem bat dau khong hop le."));
       }
     }
-    else if (input.equalsIgnoreCase("ChangeDir")) { // Bỏ comment nếu muốn dùng StartDir
-        StartDir = (StartDir + 1) % 2;
-        Serial.printf("StartDir: %d\n", StartDir);
-        if (currentState == PATH_DISPLAYED) { currentState = POINTS_ENTERED_READY_TO_DRAW; }
+    else if (input.equalsIgnoreCase("ChangeDir"))
+    { // Bỏ comment nếu muốn dùng StartDir
+      StartDir = (StartDir + 1) % 2;
+      Serial.printf("StartDir: %d\n", StartDir);
+      if (currentState == PATH_DISPLAYED)
+      {
+        currentState = POINTS_ENTERED_READY_TO_DRAW;
+      }
     }
     else
     { // Xử lý nhập tọa độ GPS
@@ -475,7 +477,7 @@ void drawFieldAndPath()
   // Tạo và vẽ đường đi zigzag
   if (field_vertices_screen.size() >= 3 && working_width_px > 0)
   {
-    StartPoint = 0;
+    StartPoint = 1;
     StartDir = 0;
     Serial.print(F("Dang tao duong di voi working_width_px = "));
     Serial.print(working_width_px);
@@ -484,7 +486,7 @@ void drawFieldAndPath()
     Serial.print(F(", StartDir = "));
     Serial.println(StartDir);
 
-    // Gọi hàm generatePath với các tham số đã tính toán
+    // Gọi hàm generate Path với các tham số đã tính toán
     // Chuyển working_width_px sang double khi gọi
     generatePath(field_vertices_screen, static_cast<double>(working_width_px), StartPoint, StartDir, hmi);
 
@@ -673,144 +675,132 @@ bool isInside(const Point &p, const std::vector<Point> &polygon)
   return inside;
 }
 
-// --- Hàm clipLineWithPolygon (Triển khai đầy đủ hơn) ---
-/**
- * @brief Cắt một đường thẳng vô hạn bởi một đa giác đơn giản.
- *
- * @param line_origin Một điểm bất kỳ trên đường thẳng.
- * @param line_dir_normalized Vector hướng đã chuẩn hóa của đường thẳng.
- * @param polygon_vertices Vector các đỉnh của đa giác theo thứ tự.
- * @return std::vector<Segment> Danh sách các đoạn thẳng là phần giao của đường thẳng và đa giác.
- */
-std::vector<Segment> clipLineWithPolygon(const Point &line_origin, const Point &line_dir_normalized, const std::vector<Point> &polygon_vertices)
+std::vector<Segment> clipLineWithPolygon(const Point &line_origin,
+                                         const Point &line_dir_normalized,
+                                         const std::vector<Point> &polygon_vertices,
+                                         double current_working_width)
 {
-  std::vector<Segment> clipped_segments;
+  std::vector<Segment> clipped_and_shrunk_segments;
   std::vector<Point> intersections;
   size_t n_poly = polygon_vertices.size();
 
+  // 1. Kiểm tra đầu vào cơ bản
   if (n_poly < 3)
   {
-    Serial.println("ClipLP: Loi - Da giac khong du dinh.");
-    return clipped_segments; // Không thể cắt với đa giác không hợp lệ
+    // Serial.println("ClipLP: Loi - Da giac khong du dinh."); // Gỡ comment nếu cần debug
+    return clipped_and_shrunk_segments;
   }
   if (line_dir_normalized.length() < GEOMETRY_EPSILON)
   {
-    Serial.println("ClipLP: Loi - Vector huong duong thang khong hop le.");
-    return clipped_segments;
+    // Serial.println("ClipLP: Loi - Vector huong duong thang khong hop le."); // Gỡ comment nếu cần debug
+    return clipped_and_shrunk_segments;
   }
 
-  // 1. Tìm tất cả các giao điểm của đường thẳng vô hạn với các cạnh của đa giác
+  // 2. Tìm tất cả các giao điểm của đường thẳng vô hạn với các cạnh của đa giác
   for (size_t i = 0; i < n_poly; ++i)
   {
     const Point &poly_p1 = polygon_vertices[i];
     const Point &poly_p2 = polygon_vertices[(i + 1) % n_poly]; // Cạnh cuối nối về đỉnh đầu
     Point current_intersection;
 
-    // Sử dụng hàm trợ giúp để tìm giao điểm đường thẳng - đoạn thẳng
     if (intersectLineSegment(line_origin, line_dir_normalized, poly_p1, poly_p2, current_intersection))
     {
       intersections.push_back(current_intersection);
-      // DEBUG: In giao điểm tìm thấy
-      Serial.printf("ClipLP: Intersect with edge %d-%d at (%.1f, %.1f)\n",
-                    i, (i + 1) % n_poly, current_intersection.x, current_intersection.y);
     }
   }
-  // Serial.printf("ClipLP: Found %d raw intersections.\n", intersections.size());
 
-  // Nếu không có giao điểm hoặc chỉ có 1 (tiếp tuyến tại điểm không phải đỉnh?), không có đoạn nào bên trong
+  // Nếu không có đủ 2 giao điểm, không thể tạo đoạn thẳng
   if (intersections.size() < 2)
   {
-    // Serial.println("ClipLP: Less than 2 intersections found.");
-    return clipped_segments;
+    return clipped_and_shrunk_segments;
   }
 
-  // 2. Sắp xếp các điểm giao cắt dọc theo hướng của đường thẳng
+  // 3. Sắp xếp các điểm giao cắt dọc theo hướng của đường thẳng
   std::sort(intersections.begin(), intersections.end(), [&](const Point &a, const Point &b)
             {
-        // Chiếu vector từ gốc đường thẳng tới điểm giao cắt lên hướng đường thẳng
-        double proj_a = (a - line_origin).dot(line_dir_normalized);
-        double proj_b = (b - line_origin).dot(line_dir_normalized);
-        return proj_a < proj_b; });
-  // Serial.println("ClipLP: Intersections sorted.");
+double proj_a = (a - line_origin).dot(line_dir_normalized);
+double proj_b = (b - line_origin).dot(line_dir_normalized);
+return proj_a < proj_b; });
 
-  // 3. Loại bỏ các điểm giao cắt trùng lặp (do đi qua đỉnh hoặc lỗi số thực)
-  // Cần một hàm so sánh Point với dung sai
+  // 4. Loại bỏ các điểm giao cắt trùng lặp (do đi qua đỉnh hoặc lỗi số thực)
   auto points_are_close = [](const Point &a, const Point &b)
   {
-    return (a - b).length() < GEOMETRY_EPSILON * 10; // Tăng nhẹ dung sai cho unique
+    return (a - b).length() < GEOMETRY_EPSILON * 10; // Dung sai lớn hơn một chút cho unique
   };
   intersections.erase(std::unique(intersections.begin(), intersections.end(), points_are_close), intersections.end());
-  // DEBUG: In các giao điểm đã sắp xếp và duy nhất
-  Serial.printf("ClipLP: Sorted & Unique Intersections (%d):\n", intersections.size());
-  for(size_t k=0; k < intersections.size(); ++k) {
-      Serial.printf("  I %d: (%.1f, %.1f)\n", k, intersections[k].x, intersections[k].y);
-  }
-  // Serial.printf("ClipLP: Found %d unique intersections.\n", intersections.size());
 
-  // Số lượng giao điểm phải là chẵn (trừ trường hợp đặc biệt)
-  // if (intersections.size() % 2 != 0)
-  // {
-  //   Serial.printf("ClipLP: Canh bao - So luong giao diem duy nhat (%d) la so le! Co the do loi so thuc hoac tiep tuyen.\n", intersections.size());
-  //   // Có thể thử bỏ điểm cuối nếu nghi ngờ lỗi, hoặc chỉ xử lý các cặp chẵn đầu tiên
-  //   if (!intersections.empty())
-  //   { // Bỏ điểm cuối nếu số lẻ
-  //     intersections.pop_back();
-  //   }
-  // }
-  // if (intersections.size() % 2 != 0)
-  // {
-  //   Serial.printf("ClipLP: Canh bao - So luong giao diem duy nhat (%d) la so le! Co the do loi so thuc hoac tiep tuyen.\n", intersections.size());
-  //   if (!intersections.empty())
-  //   {
-  //     intersections.pop_back(); // Bỏ điểm cuối nếu số lẻ: ĐÂY CÓ THỂ LÀ VẤN ĐỀ
-  //                               // Nếu bỏ điểm cuối có thể làm mất một đoạn hợp lệ.
-  //                               // An toàn hơn là không làm gì cả và để vòng lặp for xử lý các cặp chẵn.
-  //   }
-  // }
+  // Cảnh báo nếu số lượng giao điểm duy nhất là lẻ (trừ trường hợp chỉ có 1 điểm - tiếp tuyến)
   if (intersections.size() % 2 != 0 && intersections.size() > 1)
-  { // size > 1 để tránh cảnh báo cho 1 điểm (tiếp tuyến)
-    Serial.printf("ClipLP: Canh bao - So luong giao diem duy nhat (%d) la so le! Giao diem cuoi se duoc bo qua khi tao cap.\n", intersections.size());
+  {
+    // Serial.printf("ClipLP: Canh bao - So luong giao diem duy nhat (%d) la so le! Giao diem cuoi se duoc bo qua khi tao cap.\n", intersections.size());
   }
 
-  // 4. Lặp qua các cặp giao điểm đã sắp xếp và kiểm tra trung điểm
+  // 5. Lặp qua các cặp giao điểm đã sắp xếp, kiểm tra trung điểm và co ngắn đoạn
+  double half_tool_width = current_working_width / 2.0;
+
   for (size_t i = 0; i + 1 < intersections.size(); i += 2)
   {
-    const Point &p_start = intersections[i];
-    const Point &p_end = intersections[i + 1];
+    const Point &p_boundary_start = intersections[i];   // Điểm đầu của đoạn cắt thô trên biên
+    const Point &p_boundary_end = intersections[i + 1]; // Điểm cuối của đoạn cắt thô trên biên
 
-    // Tránh các đoạn có độ dài gần bằng 0
-    if ((p_end - p_start).length() < GEOMETRY_EPSILON)
+    double raw_segment_length = (p_boundary_end - p_boundary_start).length();
+
+    // Bỏ qua nếu đoạn thô ban đầu quá ngắn (gần như là một điểm)
+    if (raw_segment_length < GEOMETRY_EPSILON)
     {
       continue;
     }
 
-    // Tính trung điểm của đoạn tạo bởi cặp giao điểm
-    Point mid_point = (p_start + p_end) * 0.5;
-    bool mid_is_inside = isInside(mid_point, polygon_vertices); // Dùng isInside đã sửa
-
-    // DEBUG: In thông tin kiểm tra trung điểm
-    Serial.printf("ClipLP: Segment (%.1f,%.1f)-(%.1f,%.1f). Midpoint (%.1f,%.1f). IsInside: %s\n",
-                  p_start.x, p_start.y, p_end.x, p_end.y,
-                  mid_point.x, mid_point.y, mid_is_inside ? "TRUE" : "FALSE");
-
-    if (mid_is_inside)
+    // Kiểm tra trung điểm của đoạn thô có nằm trong đa giác không
+    Point mid_point_raw = (p_boundary_start + p_boundary_end) * 0.5;
+    if (!isInside(mid_point_raw, polygon_vertices))
     {
-      clipped_segments.push_back({p_start, p_end});
-      // Serial.println("ClipLP: -> Da them doan hop le.");
+      // Serial.printf("ClipLP: Trung diem (%.1f,%.1f) cua doan tho nam NGOAI da giac, bo qua.\n", mid_point_raw.x, mid_point_raw.y);
+      continue; // Trung điểm không nằm trong, đoạn này không hợp lệ
     }
-    // 5. Kiểm tra xem trung điểm có nằm bên trong đa giác không
-    if (isInside(mid_point, polygon_vertices))
+
+    // Tiến hành co ngắn đoạn thẳng
+    // Chỉ co ngắn và thêm vào nếu đoạn thô đủ dài ít nhất bằng chiều rộng nông cụ
+    // để sau khi co lại từ cả hai phía, nó vẫn còn là một đoạn có chiều dài dương.
+    if (raw_segment_length >= current_working_width - GEOMETRY_EPSILON)
     {
-      // Nếu trung điểm nằm trong, đoạn thẳng này là phần giao hợp lệ
-      clipped_segments.push_back({p_start, p_end});
+      Point dir_raw_segment = (p_boundary_end - p_boundary_start).normalized();
+
+      Point shrunk_p1 = p_boundary_start + dir_raw_segment * half_tool_width;
+      Point shrunk_p2 = p_boundary_end - dir_raw_segment * half_tool_width;
+
+      // Kiểm tra lại chiều dài của đoạn đã co ngắn
+      // Dùng dot product để đảm bảo shrunk_p2 không "vượt qua" shrunk_p1
+      if ((shrunk_p2 - shrunk_p1).dot(dir_raw_segment) >= -GEOMETRY_EPSILON)
+      {
+        // Yêu cầu chiều dài tối thiểu cho một đường path thực tế (ví dụ > 0.5 pixel)
+        // Điều này quan trọng hơn việc dot product chỉ >= 0, vì một điểm cũng có dot product = 0.
+        if ((shrunk_p2 - shrunk_p1).length() > 0.5)
+        { // Có thể điều chỉnh ngưỡng này
+          clipped_and_shrunk_segments.push_back({shrunk_p1, shrunk_p2});
+        }
+        else
+        {
+          // Serial.printf("ClipLP: Doan (%.1f,%.1f)-(%.1f,%.1f) sau khi co ngan thanh diem hoac qua ngan (%.2fpx), bo qua.\n",
+          //               p_boundary_start.x, p_boundary_start.y, p_boundary_end.x, p_boundary_end.y, (shrunk_p2 - shrunk_p1).length());
+        }
+      }
+      else
+      {
+        // Serial.printf("ClipLP: Doan (%.1f,%.1f)-(%.1f,%.1f) sau khi co ngan bi am chieu dai, bo qua.\n",
+        //               p_boundary_start.x, p_boundary_start.y, p_boundary_end.x, p_boundary_end.y);
+      }
     }
-    // else {
-    //     Serial.printf("ClipLP: Midpoint (%.1f, %.1f) between intersection %d and %d is OUTSIDE.\n", mid_point.x, mid_point.y, i, i+1);
-    // }
+    else
+    {
+      // Đoạn thô có chiều dài nhỏ hơn workingWidth.
+      // Nông cụ không thể đi hết chiều dài này mà vẫn giữ khoảng cách half_tool_width với cả hai đầu biên.
+      // Serial.printf("ClipLP: Doan tho (%.1f,%.1f)-(%.1f,%.1f) dai %.2fpx < workingWidth %.2fpx, khong du de co ngan, bo qua.\n",
+      //               p_boundary_start.x, p_boundary_start.y, p_boundary_end.x, p_boundary_end.y, raw_segment_length, current_working_width);
+    }
   }
 
-  // Serial.printf("ClipLP: Returning %d clipped segments.\n", clipped_segments.size());
-  return clipped_segments;
+  return clipped_and_shrunk_segments;
 }
 
 void generatePath(const std::vector<Point> &polygon_vertices,
@@ -916,7 +906,8 @@ void generatePath(const std::vector<Point> &polygon_vertices,
     // dọc theo hướng inward_offset_dir
     Point current_line_origin = edge_midpoint + inward_offset_dir * accumulated_offset_distance;
 
-    std::vector<Segment> segments_on_line = clipLineWithPolygon(current_line_origin, primary_dir_normalized, polygon_vertices);
+    std::vector<Segment> segments_on_line = clipLineWithPolygon(current_line_origin, primary_dir_normalized, polygon_vertices,
+                                                                workingWidth); // Cắt đường thẳng với đa giác
 
     if (!segments_on_line.empty())
     {
@@ -988,7 +979,6 @@ void generatePath(const std::vector<Point> &polygon_vertices,
                     k, seg.p1.x, seg.p1.y, seg.p2.x, seg.p2.y);
     }
   }
-
 
   // 5. Sắp xếp các đoạn đường đi theo thứ tự quét
   // Gốc chiếu để sắp xếp nên là một điểm trên cạnh chuẩn, ví dụ edge_ref_p1
