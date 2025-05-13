@@ -1,0 +1,71 @@
+// include this library's description file
+#ifndef HMIDISPLAY_H
+#include "HMIDisplay.h"
+#endif
+class HMI_Display
+{
+public:
+  HMI_Display(HardwareSerial &serial)
+  { // Constructor's parameter is the Serial we want to use
+    _serial = &serial;
+  }
+
+  // Constructor's parameter is the Serial we want to use
+  void HMI_Display::begin(unsigned long baud)
+  {
+    _serial->begin(baud); // We pass the initialization data to the objects (baud rate) default: 9600
+
+    delay(100); // Wait for the Serial to initialize
+
+    _tmr1 = millis();
+    while (_serial->available() > 0)
+    { // Read the Serial until it is empty. This is used to clear Serial buffer
+      if ((millis() - _tmr1) > 400UL)
+      { // Reading... Waiting... But not forever......
+        break;
+      }
+      _serial->read(); // Read and delete bytes
+    }
+  }
+  void drawPic(int x, int y, int pic_id)
+  {
+    Serial.print("drawPic: ");
+    Serial.println(pic_id);
+    String command = "pic " + String(x) + "," + String(y) + "," + String(pic_id);
+    _serial->print(command); // Gửi lệnh tới HMI
+    _serial->print(0xff);
+    _serial->print(0xff);
+    _serial->print(0xff);
+  }
+  void drawLine(int x1, int y1, int x2, int y2, int color)
+  {
+    String command = "line " + String(x1) + "," + String(y1) + "," + String(x2) + "," + String(y2) + "," + String(color);
+    NextionSerial.print(command); // Gửi lệnh tới HMI
+    NextionSerial.write(0xff);
+    NextionSerial.write(0xff);
+    NextionSerial.write(0xff);
+  }
+  void clearScreen(int color)
+  {
+    Serial.println("clearScreen");
+    // Ví dụ lệnh cho Nextion:
+    // String command = "cls 0" + String(color);
+    String command = "cls " + String(color);
+    NextionSerial.print(command);
+    NextionSerial.write(0xff);
+    NextionSerial.write(0xff);
+    NextionSerial.write(0xff);
+  }
+  // Hàm vẽ điểm hoặc vòng tròn nhỏ để đánh dấu điểm đã nhập (tùy chọn)
+  void drawPointMarker(int x, int y, int color)
+  {
+    String command = "cirs " + String(x) + "," + String(y) + "," + String(4) + "," + String(color);
+    NextionSerial.print(command);
+    NextionSerial.write(0xff);
+    NextionSerial.write(0xff);
+    NextionSerial.write(0xff);
+  }
+
+private:
+  HardwareSerial *_serial;
+};

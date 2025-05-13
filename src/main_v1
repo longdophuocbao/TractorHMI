@@ -1,0 +1,444 @@
+#include <Arduino.h>
+#include <vector> // Để lưu trữ danh sách các điểm
+#include <HardwareSerial.h>
+#include "function.h"
+// --- Cấu hình ---
+const int NEXTION_RX_PIN = 18;       // GPIO18 nối với TX của Nextion
+const int NEXTION_TX_PIN = 19;       // GPIO19 nối với RX của Nextion
+const long NEXTION_BAUD_RATE = 9600; // Tốc độ Baud - PHẢI KHỚP VỚI NEXTION! (9600 là mặc định của Nextion)
+HardwareSerial &NextionSerial = Serial2;
+
+int working_width = 40;
+
+// Cấu trúc để lưu trữ một điểm tọa độ
+struct Point
+{
+  int x;
+  int y;
+};
+// Giả sử HMI có đối tượng và hàm vẽ như sau (bạn cần thay thế bằng hàm thực tế của HMI)
+class HMI_Display
+{
+public:
+  HMI_Display(HardwareSerial &serial)
+  { // Constructor's parameter is the Serial we want to use
+    _serial = &serial;
+  }
+  void begin()
+  {
+    _serial->begin(NEXTION_BAUD_RATE, SERIAL_8N1, NEXTION_RX_PIN, NEXTION_TX_PIN);
+  }
+  void drawPic(int x, int y, int pic_id)
+  {
+    Serial.print("drawPic: ");
+    Serial.println(pic_id);
+    String command = "pic " + String(x) + "," + String(y) + "," + String(pic_id);
+    NextionSerial.print(command); // Gửi lệnh tới HMI
+    NextionSerial.write(0xff);
+    NextionSerial.write(0xff);
+    NextionSerial.write(0xff);
+  }
+  void drawLine(int x1, int y1, int x2, int y2, int color)
+  {
+    String command = "line " + String(x1) + "," + String(y1) + "," + String(x2) + "," + String(y2) + "," + String(color);
+    NextionSerial.print(command); // Gửi lệnh tới HMI
+    NextionSerial.write(0xff);
+    NextionSerial.write(0xff);
+    NextionSerial.write(0xff);
+  }
+  void clearScreen(int color)
+  {
+    Serial.println("clearScreen");
+    // Ví dụ lệnh cho Nextion:
+    // String command = "cls 0" + String(color);
+    String command = "cls " + String(color);
+    NextionSerial.print(command);
+    NextionSerial.write(0xff);
+    NextionSerial.write(0xff);
+    NextionSerial.write(0xff);
+  }
+  // Hàm vẽ điểm hoặc vòng tròn nhỏ để đánh dấu điểm đã nhập (tùy chọn)
+  void drawPointMarker(int x, int y, int color)
+  {
+    String command = "cirs " + String(x) + "," + String(y) + "," + String(4) + "," + String(color);
+    NextionSerial.print(command);
+    NextionSerial.write(0xff);
+    NextionSerial.write(0xff);
+    NextionSerial.write(0xff);
+  }
+
+private:
+  HardwareSerial *_serial;
+};
+
+HMI_Display hmi; // Khởi tạo đối tượng HMI
+
+// Màu sắc (ví dụ)
+const int WHITE = 65535;
+const int BLACK = 0;
+const int GREEN = 2016; // Màu xanh lá cho đường zigzag
+const int BROWN = 48192;
+const int YELLOW = 65504;
+const int GRAY = 33840;
+const int RED = 63488;
+const int BLUE = 31;
+
+// Biến toàn cục cho các điểm và trạng thái
+std::vector<Point> field_vertices_input;
+enum ProgramState
+{
+  WAITING_FOR_POINTS,
+  POINTS_ENTERED_READY_TO_DRAW,
+  PATH_DISPLAYED
+};
+ProgramState currentState = WAITING_FOR_POINTS;
+void generateZigzagPath(const std::vector<Point> &polygon_vertices, int workingWidth, HMI_Display &hmi_display); 
+void resetAndClear()
+{
+  field_vertices_input.clear();
+  hmi.clearScreen(WHITE);
+  currentState = WAITING_FOR_POINTS;
+  Serial.println(F("---------------------------------------------"));
+  Serial.println(F("Da xoa. Nhap lai toa do cac diem goc (X,Y)."));
+  Serial.println(F("Go 'done' khi hoan tat."));
+}
+
+void handlePointInput()
+{
+  if (Serial.available() > 0)
+  {
+    String input = Serial.readStringUntil('\n');
+    input.trim();
+
+    if (input.equalsIgnoreCase("done"))
+    {
+      if (field_vertices_input.size() >= 3)
+      {
+        Serial.println(F("Hoan tat nhap diem. Dang xu ly..."));
+        currentState = POINTS_ENTERED_READY_TO_DRAW;
+      }
+      else
+      {
+        Serial.println(F("Loi: Can it nhat 3 diem. Vui long nhap them."));
+      }
+    }
+    else if (input.equalsIgnoreCase("clear"))
+    {
+      resetAndClear();
+    }
+    else
+    {
+      // Phân tích tọa độ X,Y
+      int commaIndex = input.indexOf(',');
+      if (commaIndex != -1)
+      {
+        String xStr = input.substring(0, commaIndex);
+        String yStr = input.substring(commaIndex + 1);
+        // Loại bỏ khoảng trắng thừa nếu có
+        xStr.trim();
+        yStr.trim();
+
+        // Chuyển đổi sang số nguyên (kiểm tra lỗi cơ bản)
+        bool conversion_ok = true;
+        for (char c : xStr)
+          if (!isDigit(c) && c != '-')
+          {
+            conversion_ok = false;
+            break;
+          }
+        for (char c : yStr)
+          if (!isDigit(c) && c != '-')
+          {
+            conversion_ok = false;
+            break;
+          }
+
+        if (conversion_ok && xStr.length() > 0 && yStr.length() > 0)
+        {
+          int x = xStr.toInt();
+          int y = yStr.toInt();
+          field_vertices_input.push_back({x, y});
+          Serial.print(F("Da them diem: ("));
+          Serial.print(x);
+          Serial.print(F(","));
+          Serial.print(y);
+          Serial.println(F(")"));
+          Serial.print(F("Tong so diem: "));
+          Serial.println(field_vertices_input.size());
+
+          // Vẽ điểm vừa nhập lên HMI (tùy chọn)
+          hmi.drawPointMarker(x, y, RED); // Màu đỏ cho điểm đã nhập
+          // Nếu có nhiều hơn 1 điểm, vẽ cạnh nối tạm thời
+          if (field_vertices_input.size() > 1)
+          {
+            Point prev_point = field_vertices_input[field_vertices_input.size() - 2];
+            hmi.drawLine(prev_point.x, prev_point.y, x, y, RED); // Màu đỏ cho cạnh tạm
+          }
+        }
+        else
+        {
+          Serial.println(F("Loi: Dinh dang diem khong hop le. Su dung X,Y"));
+        }
+      }
+      else
+      {
+        Serial.println(F("Loi: Lenh khong hop le. Su dung X,Y hoac 'done'/'clear'."));
+      }
+    }
+  }
+}
+
+void drawFieldAndPath()
+{
+  //hmi.clearScreen(WHITE); // Xóa màn hình trước khi vẽ mới
+  //delay(100);
+  hmi.drawPic(556, 180, 13); // Vẽ lại hình ảnh nền
+  String sent = "vis h0,1";
+  NextionSerial.print(sent);
+  NextionSerial.write(0xFF);
+  NextionSerial.write(0xFF);
+  NextionSerial.write(0xFF);
+  for(size_t i = 0; i < field_vertices_input.size(); ++i)
+  {
+    hmi.drawPointMarker(field_vertices_input[i].x, field_vertices_input[i].y, RED); // Vẽ điểm đã nhập
+  }
+  // Vẽ đường viền của khu vực
+  if (field_vertices_input.size() >= 2)
+  {
+    for (size_t i = 0; i < field_vertices_input.size(); ++i)
+    {
+      hmi.drawLine(field_vertices_input[i].x, field_vertices_input[i].y,
+                  field_vertices_input[(i + 1) % field_vertices_input.size()].x, field_vertices_input[(i + 1) % field_vertices_input.size()].y,
+                  BLUE);
+    }
+  }
+
+  // Tạo và vẽ đường zigzag
+  Serial.print(F("Dang tao duong zigzag voi working_width = "));
+  Serial.println(working_width);
+  generateZigzagPath(field_vertices_input, working_width, hmi);
+}
+
+void findIntersectionX(Point p1, Point p2, int x_target, std::vector<Point> &intersections)
+{
+  if ((p1.x <= x_target && p2.x >= x_target) || (p1.x >= x_target && p2.x <= x_target))
+  {
+    if (p1.x == p2.x && p1.x == x_target)
+    {
+      intersections.push_back({x_target, p1.y});
+      intersections.push_back({x_target, p2.y});
+      return;
+    }
+    if (p1.y == p2.y)
+    {
+      if (x_target >= std::min(p1.x, p2.x) && x_target <= std::max(p1.x, p2.x))
+      {
+        intersections.push_back({x_target, p1.y});
+      }
+      return;
+    }
+    if (p2.x == p1.x)
+      return;
+    float y_intersect = (float)p1.y + (float)(p2.y - p1.y) * (float)(x_target - p1.x) / (float)(p2.x - p1.x);
+    float min_y_edge = std::min(p1.y, p2.y);
+    float max_y_edge = std::max(p1.y, p2.y);
+    float epsilon = 0.001f;
+    if (y_intersect >= min_y_edge - epsilon && y_intersect <= max_y_edge + epsilon)
+    {
+      intersections.push_back({x_target, (int)round(y_intersect)});
+    }
+  }
+}
+
+void generateZigzagPath(const std::vector<Point> &polygon_vertices, int workingWidth, HMI_Display &hmi_display)
+{
+  if (polygon_vertices.size() < 3)
+  {
+    Serial.println("Da giac phai co it nhat 3 dinh.");
+    return;
+  }
+
+  int minX = polygon_vertices[0].x;
+  int maxX = polygon_vertices[0].x;
+  for (size_t i = 1; i < polygon_vertices.size(); ++i)
+  {
+    if (polygon_vertices[i].x < minX)
+      minX = polygon_vertices[i].x;
+    if (polygon_vertices[i].x > maxX)
+      maxX = polygon_vertices[i].x;
+  }
+
+  std::vector<Point> waypoints;
+  bool current_strip_top_to_bottom = true;
+  int half_width = workingWidth / 2;
+  const float MIN_STRIP_DRAW_LENGTH = 2.0f; // Độ dài tối thiểu của một đoạn zigzag dọc để vẽ
+
+  for (int x_scan = minX + half_width; x_scan <= maxX - half_width; x_scan += workingWidth)
+  {
+    // Điều chỉnh điều kiện vòng lặp x_scan để đảm bảo dải cuối cùng có thể nằm trọn vẹn
+    // (tâm của dải cuối không vượt quá maxX - half_width)
+    std::vector<Point> current_scan_intersections;
+    for (size_t i = 0; i < polygon_vertices.size(); ++i)
+    {
+      Point p1 = polygon_vertices[i];
+      Point p2 = polygon_vertices[(i + 1) % polygon_vertices.size()];
+      findIntersectionX(p1, p2, x_scan, current_scan_intersections);
+    }
+
+    if (!current_scan_intersections.empty())
+    {
+      std::sort(current_scan_intersections.begin(), current_scan_intersections.end(), [](Point a, Point b)
+                {
+                if (a.y != b.y) return a.y < b.y;
+                return a.x < b.x; });
+      current_scan_intersections.erase(std::unique(current_scan_intersections.begin(), current_scan_intersections.end(), [](Point a, Point b)
+                                                  { return a.x == b.x && a.y == b.y; }),
+                                      current_scan_intersections.end());
+    }
+
+    if (current_scan_intersections.size() >= 2)
+    {
+      Point p_actual_top_on_boundary = current_scan_intersections.front();
+      Point p_actual_bottom_on_boundary = current_scan_intersections.back();
+
+      if (p_actual_top_on_boundary.y > p_actual_bottom_on_boundary.y)
+      { // Đảm bảo top ở trên, bottom ở dưới
+        std::swap(p_actual_top_on_boundary, p_actual_bottom_on_boundary);
+      }
+
+      Point final_top, final_bottom;
+
+      // Thử áp dụng "co lại" (inset)
+      final_top.x = p_actual_top_on_boundary.x;
+      final_top.y = p_actual_top_on_boundary.y + half_width;
+      final_bottom.x = p_actual_bottom_on_boundary.x;
+      final_bottom.y = p_actual_bottom_on_boundary.y - half_width;
+
+      // Nếu sau khi co lại, đoạn quá ngắn hoặc bị ngược, thì dùng biên gốc
+      if (final_bottom.y - final_top.y < MIN_STRIP_DRAW_LENGTH)
+      {
+        final_top.y = p_actual_top_on_boundary.y;
+        final_bottom.y = p_actual_bottom_on_boundary.y;
+        // Serial.print("Strip at x_scan = "); Serial.print(x_scan);
+        // Serial.println(": Y-inset not applied (segment too short/invalid after inset). Using boundary.");
+      }
+
+      // Nếu ngay cả đoạn trên biên gốc cũng quá ngắn, bỏ qua dải này
+      if (p_actual_bottom_on_boundary.y - p_actual_top_on_boundary.y < MIN_STRIP_DRAW_LENGTH)
+      {
+        Serial.print("Skipping strip at x_scan = ");
+        Serial.print(x_scan);
+        Serial.println(" (original boundary span too short).");
+        continue; // Bỏ qua dải x_scan này
+      }
+      // Kiểm tra lại lần nữa sau khi có thể đã revert về original
+      if (final_bottom.y - final_top.y < MIN_STRIP_DRAW_LENGTH)
+      {
+        Serial.print("Skipping strip at x_scan = ");
+        Serial.print(x_scan);
+        Serial.println(" (final segment too short even after considering boundary).");
+        continue;
+      }
+
+      if (waypoints.empty())
+      {
+        if (current_strip_top_to_bottom)
+        {
+          waypoints.push_back(final_top);
+          waypoints.push_back(final_bottom);
+        }
+        else
+        {
+          waypoints.push_back(final_bottom);
+          waypoints.push_back(final_top);
+        }
+      }
+      else
+      {
+        if (current_strip_top_to_bottom)
+        {
+          waypoints.push_back(final_top);
+          waypoints.push_back(final_bottom);
+        }
+        else
+        {
+          waypoints.push_back(final_bottom);
+          waypoints.push_back(final_top);
+        }
+      }
+      current_strip_top_to_bottom = !current_strip_top_to_bottom;
+    }
+  }
+
+  if (waypoints.size() >= 2)
+  {
+    Serial.println("vepicture");
+    hmi_display.drawPic(waypoints[0].x-11, waypoints[0].y-18, 12); // Vẽ lại hình ảnh nền
+    // Vẽ đường zigzag
+    for (size_t k = 0; k < waypoints.size() - 1; ++k)
+    {
+      hmi_display.drawLine(waypoints[k].x, waypoints[k].y, waypoints[k + 1].x, waypoints[k + 1].y, YELLOW);
+    }
+  }
+  else
+  {
+    Serial.println("loi: Khong du duong de ve zigzag.");
+  }
+}
+
+void setup()
+{
+  Serial.begin(115200);
+  while (!Serial)
+    ; // Đợi Serial sẵn sàng
+  NextionSerial.begin(NEXTION_BAUD_RATE, SERIAL_8N1, NEXTION_RX_PIN, NEXTION_TX_PIN);
+  while (!NextionSerial)
+    ; // Đợi Serial sẵn sàng
+  delay(1000); // Đợi một chút để đảm bảo Nextion đã khởi động hoàn toàn
+  Serial.println(F("--- May Nong Nghiep - Dieu Huong Zigzag ---"));
+  Serial.println(F("Nhap toa do cac diem goc theo dinh dang: X,Y (vi du: 100,150)"));
+  Serial.println(F("Nhap it nhat 3 diem."));
+  Serial.println(F("Go 'done' khi hoan tat viec nhap diem."));
+  Serial.println(F("Go 'clear' de xoa cac diem da nhap va bat dau lai."));
+  Serial.println(F("---------------------------------------------"));
+  currentState = WAITING_FOR_POINTS;
+}
+int currentAngle = 50;
+void loop()
+{
+  switch (currentState)
+  {
+  case WAITING_FOR_POINTS:
+    handlePointInput();
+    break;
+  case POINTS_ENTERED_READY_TO_DRAW:
+    drawFieldAndPath();
+    currentState = PATH_DISPLAYED;
+    Serial.println(F("Da ve xong. Go 'clear' de nhap lai."));
+    break;
+  case PATH_DISPLAYED:
+    currentAngle = currentAngle + 1;
+    if(currentAngle > 100)
+      currentAngle = 0;
+    //currentAngle = map(currentAngle, -5, 5, 0, 100);
+
+    // Chờ lệnh 'clear'
+    // Serial.println(F("chong lenh 'clear' de xoa va bat dau lai."));
+    NextionSerial.printf("h0.val=%d\xff\xff\xff", currentAngle);
+    NextionSerial.write(0xFF);
+    NextionSerial.write(0xFF);
+    NextionSerial.write(0xFF);
+    if (Serial.available() > 0)
+    {
+
+      //Serial.println(F("Da ve xong. Go 'clear' de nhap lai."));
+      String input = Serial.readStringUntil('\n');
+      input.trim();
+      if (input.equalsIgnoreCase("clear"))
+      {
+        resetAndClear();
+      }
+    }
+    break;
+  }
+}
