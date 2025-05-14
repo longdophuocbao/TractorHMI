@@ -1,6 +1,10 @@
 #include "globals.h"
 #include "HMI_Display.h"
 
+const unsigned long BAUDRATE = 115200; // Chân RX của Nextion
+const int8_t RX_PIN = 18; // Chân RX của Nextion
+const int8_t TX_PIN = 19; // Chân TX của Nextion
+
 // Định nghĩa đối tượng HMI_Display toàn cục
 HardwareSerial NextionSerial = Serial2; // Sử dụng Serial2 cho Nextion
 HMI_Display hmi(NextionSerial);
@@ -25,9 +29,10 @@ const int GREEN = 2016;
 const int BLUE = 31;
 const int RED = 63488;
 const int YELLOW = 65504;
+const int SCREEN_BACKGROUND_COLOR = 17424;
 
 // KÍCH THƯỚC MÀN HÌNH NEXTION VÀ PADDING
-const int SCREEN_WIDTH_PX = 800;
+const int SCREEN_WIDTH_PX = 500;
 const int SCREEN_HEIGHT_PX = 480;
 const int SCREEN_PADDING_PX = 10;
 
@@ -39,3 +44,26 @@ float working_width_real_meters = 1.4f; // Ví dụ: nông cụ rộng 4 mét
 int working_width_px = 0;               // Chiều rộng làm việc đã scale sang pixel (sẽ được tính toán)
 
 const double GEOMETRY_EPSILON = 1e-9;
+
+const int TRACTOR_PIC_ID_UP = 9;
+const int TRACTOR_PIC_ID_RIGHT = 10;
+const int TRACTOR_PIC_ID_LEFT = 11;
+const int TRACTOR_PIC_ID_DOWN = 12;
+const int TRACTOR_PIC_WIDTH = 22;  
+const int TRACTOR_PIC_HEIGHT = 36;
+
+const int TRACTOR_PIC_VERTICAL_WIDTH = 22;
+const int TRACTOR_PIC_VERTICAL_HEIGHT = 36;
+const int TRACTOR_PIC_HORIZONTAL_WIDTH = 36;
+const int TRACTOR_PIC_HORIZONTAL_HEIGHT = 22;
+
+const int TRACTOR_PIC_ID_DEFAULT = TRACTOR_PIC_ID_UP;
+int current_tractor_display_pic_id = TRACTOR_PIC_ID_DEFAULT; // ID ảnh máy cày sẽ được vẽ
+int previous_tractor_display_pic_id = TRACTOR_PIC_ID_DEFAULT;
+
+// Biến cho vị trí máy cày thực tế
+GpsPoint current_tractor_gps_actual;         // Tọa độ GPS thực từ module
+Point current_tractor_screen_actual;         // Tọa độ màn hình tương ứng
+Point previous_tractor_screen_actual;        // Lưu vị trí màn hình trước đó để xóa
+bool has_valid_previous_tractor_pos = false; // Cờ cho biết có vị trí cũ hợp lệ để xóa không
+bool new_tractor_gps_data_received = false;  // Cờ báo có dữ liệu GPS mới

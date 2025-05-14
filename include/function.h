@@ -39,5 +39,7 @@ bool segmentIntersection(const Point &p1, const Point &p2, const Point &p3, cons
 std::vector<Segment> clipLineWithPolygon(const Point &line_origin, const Point &line_dir_normalized, const std::vector<Point> &polygon_vertices, double current_working_width);
 bool isInside(const Point &p, const std::vector<Point> &polygon);
 void generatePath(const std::vector<Point> &polygon_vertices, double workingWidth, int startVertexIndex, int startDirGlobal, HMI_Display &hmi_display);
-
+void updateAndDrawTractorPositionHMI();
+void readAndProcessGpsData();
+void getTractorPicDimensions(int pic_id, int &width, int &height);
 #endif // FUNCTION_H

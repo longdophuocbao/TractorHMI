@@ -14,10 +14,11 @@ void resetAndClear()
 {
   field_vertices_gps.clear();
   field_vertices_screen.clear();
-  hmi.clearScreen(WHITE); // Xóa màn hình HMI với màu trắng
+  hmi.clearScreen(SCREEN_BACKGROUND_COLOR); // Xóa màn hình HMI với màu trắng
   currentState = WAITING_FOR_POINTS;
   StartPoint = 0; // Reset các giá trị về mặc định
   StartDir = 0;
+  has_valid_previous_tractor_pos = false;
   Serial.println(F("---------------------------------------------"));
   Serial.println(F("Da xoa. Nhap lai toa do GPS (KinhDo,ViDo). Vi du: 106.6602,10.7769"));
   Serial.println(F("Nhap it nhat 3 diem."));
@@ -36,12 +37,21 @@ void handlePointInput()
     if (input.equalsIgnoreCase("done"))
     {
       // Tùy chọn: Thêm điểm cố định để test nhanh
-      field_vertices_gps.push_back({120.26566389135687, 22.626949475307885});
-      field_vertices_gps.push_back({120.26609465404412, 22.627049646169556});
-      field_vertices_gps.push_back({120.26614325919708, 22.626493423503955});
-      field_vertices_gps.push_back({120.26563962832518, 22.62629604619295});
+      // field_vertices_gps.push_back({120.26566389135687, 22.626949475307885});
+      // field_vertices_gps.push_back({120.26609465404412, 22.627049646169556});
+      // field_vertices_gps.push_back({120.26614325919708, 22.626493423503955});
+      // field_vertices_gps.push_back({120.26563962832518, 22.62629604619295});
+      field_vertices_gps.push_back({120.26567222968173, 22.62686995853145});
+      field_vertices_gps.push_back({120.26572065449193, 22.626871898407174});
+      field_vertices_gps.push_back({120.26572388062435, 22.626916585260386});
+      field_vertices_gps.push_back({120.2659776718851, 22.62691692916119});
+      field_vertices_gps.push_back({120.26597749948263, 22.626875018365492});
+      field_vertices_gps.push_back({120.26602567463398, 22.626870349228255});
 
-      if (field_vertices_gps.size() >= 3)
+      field_vertices_gps.push_back({120.26602428567377, 22.626499333091026});
+      field_vertices_gps.push_back({120.26566899973842, 22.62647562599012});
+
+          if (field_vertices_gps.size() >= 3)
       {
         Serial.println(F("Hoan tat nhap diem. Dang tinh toan scale va xu ly..."));
         calculateScaleAndTransformPoints();
@@ -236,8 +246,7 @@ void drawFieldAndPath()
     return;
   }
 
-  hmi.clearScreen(WHITE); // Xóa màn hình trước khi vẽ mới
-  delay(100);             // Chờ màn hình xóa
+  hmi.clearScreen(SCREEN_BACKGROUND_COLOR); // Xóa màn hình trước khi vẽ mới
 
   // Vẽ các điểm đỉnh đã scale
   Serial.println(F("Ve cac diem dinh (man hinh):"));
@@ -800,16 +809,176 @@ return (center_a - edge_ref_p1_for_sort).dot(inward_offset_dir) < (center_b - ed
   if (final_path_points.size() >= 2)
   {
     Serial.println(F("GP: Drawing final path..."));
+    hmi_display.drawPointMarker(final_path_points.front(), GREEN);
+    hmi_display.drawPic(final_path_points.front().x - TRACTOR_PIC_WIDTH / 2, final_path_points.front().y - TRACTOR_PIC_HEIGHT / 2, TRACTOR_PIC_ID_DEFAULT);
     for (size_t i = 0; i < final_path_points.size() - 1; ++i)
     {
       hmi_display.drawLine(final_path_points[i], final_path_points[i + 1], YELLOW);
     }
-    hmi_display.drawPointMarker(final_path_points.front(), GREEN);
     hmi_display.drawPointMarker(final_path_points.back(), RED);
+    for(int i;i<255;i++ )
+    {
+      Serial.println(i);
+      hmi.visPic(i, 0);
+      delay(500);
+    }
   }
   else
   {
     Serial.println(F("GP: Loi - Duong di cuoi cung khong du diem de ve."));
   }
   Serial.println(F("GP: Path generation and drawing function finished."));
+}
+
+void updateAndDrawTractorPositionHMI()
+{
+  if (!new_tractor_gps_data_received)
+  {
+    return;
+  }
+  new_tractor_gps_data_received = false;
+
+  if (scale_factor_combined == 0 && field_vertices_gps.size() < 3)
+  {
+    return;
+  }
+
+  // 1. Xác định vị trí TÂM mới của máy cày trên màn hình
+  Point new_tractor_center_screen = transformGpsToScreen(current_tractor_gps_actual);
+
+  // 2. Xác định pic_id MỚI dựa trên hướng di chuyển
+  int pic_id_to_draw_now = TRACTOR_PIC_ID_DEFAULT; // Mặc định ban đầu
+
+  if (has_valid_previous_tractor_pos)
+  {
+    double deltaX = new_tractor_center_screen.x - previous_tractor_screen_actual.x; // previous_tractor_screen_actual là TÂM của ảnh trước
+    double deltaY = new_tractor_center_screen.y - previous_tractor_screen_actual.y;
+    double move_threshold = 1.0;
+
+    if (std::fabs(deltaX) > std::fabs(deltaY) && std::fabs(deltaX) > move_threshold)
+    {
+      pic_id_to_draw_now = (deltaX > 0) ? TRACTOR_PIC_ID_RIGHT : TRACTOR_PIC_ID_LEFT;
+    }
+    else if (std::fabs(deltaY) > std::fabs(deltaX) && std::fabs(deltaY) > move_threshold)
+    {
+      pic_id_to_draw_now = (deltaY > 0) ? TRACTOR_PIC_ID_DOWN : TRACTOR_PIC_ID_UP;
+    }
+    else
+    {
+      // Không di chuyển đáng kể, giữ nguyên ID ảnh của khung hình trước
+      pic_id_to_draw_now = current_tractor_display_pic_id; // current_tractor_display_pic_id lưu ID của ảnh đang hiển thị (từ frame trước)
+    }
+  }
+  else
+  {
+    // Lần đầu vẽ hoặc sau khi reset
+    pic_id_to_draw_now = TRACTOR_PIC_ID_DEFAULT;
+  }
+  // Cập nhật ID ảnh sẽ được vẽ trong khung hình này
+  current_tractor_display_pic_id = pic_id_to_draw_now;
+
+  // 3. Lấy kích thước cho ảnh MỚI sắp vẽ
+  int current_pic_w, current_pic_h;
+  getTractorPicDimensions(current_tractor_display_pic_id, current_pic_w, current_pic_h);
+
+  // 4. Tính tọa độ góc trên-trái (top-left) để vẽ ảnh MỚI (căn giữa theo new_tractor_center_screen)
+  int new_pic_draw_x = static_cast<int>(std::round(new_tractor_center_screen.x - (double)current_pic_w / 2.0));
+  int new_pic_draw_y = static_cast<int>(std::round(new_tractor_center_screen.y - (double)current_pic_h / 2.0));
+
+  // 5. Xóa ảnh CŨ nếu có
+  if (has_valid_previous_tractor_pos)
+  {
+    // Lấy kích thước của ảnh TRƯỚC ĐÓ đã vẽ (dựa vào previous_tractor_display_pic_id)
+    int prev_pic_w, prev_pic_h;
+    getTractorPicDimensions(previous_tractor_display_pic_id, prev_pic_w, prev_pic_h);
+
+    // Tính tọa độ top-left của ảnh TRƯỚC ĐÓ (dựa vào previous_tractor_screen_actual là TÂM của ảnh đó)
+    int prev_pic_draw_x = static_cast<int>(std::round(previous_tractor_screen_actual.x - (double)prev_pic_w / 2.0));
+    int prev_pic_draw_y = static_cast<int>(std::round(previous_tractor_screen_actual.y - (double)prev_pic_h / 2.0));
+
+    // Vẽ hình chữ nhật MÀU NỀN đè lên vị trí ảnh CŨ
+    
+    // hmi.fillRect(prev_pic_draw_x, prev_pic_draw_y, prev_pic_w, prev_pic_h, SCREEN_BACKGROUND_COLOR);
+    delay(1000); // Cân nhắc nếu cần thiết
+  }
+
+  // 6. Vẽ ảnh MỚI
+  // hmi.drawPic(new_pic_draw_x, new_pic_draw_y, current_tractor_display_pic_id);
+
+  // Serial.print(...); // Log debug nếu cần
+
+  // 7. Cập nhật thông tin cho khung hình tiếp theo
+  previous_tractor_screen_actual = new_tractor_center_screen;       // Lưu lại TÂM của ảnh vừa vẽ
+  previous_tractor_display_pic_id = current_tractor_display_pic_id; // Lưu lại ID của ảnh vừa vẽ
+  has_valid_previous_tractor_pos = true;
+}
+
+// Hàm này cần được gọi trong loop()
+// Bạn cần tự hoàn thiện phần đọc và phân tích NMEA từ module GPS thực tế
+void readAndProcessGpsData()
+{
+  // --- PHẦN ĐỌC GPS THỰC TẾ CẦN THAY THẾ VÀO ĐÂY ---
+  // Ví dụ: đọc từ một Serial khác nối với GPS, dùng thư viện TinyGPS++, NMEAparser, v.v.
+  // if (gpsSerial.available() > 0) {
+  //    char c = gpsSerial.read();
+  //    if (gpsParser.encode(c)) { // Giả sử gpsParser là đối tượng của thư viện bạn dùng
+  //        if (gpsParser.location.isValid() && gpsParser.location.isUpdated()) {
+  //            current_tractor_gps_actual.latitude = gpsParser.location.lat();
+  //            current_tractor_gps_actual.longitude = gpsParser.location.lng();
+  //            new_tractor_gps_data_received = true;
+  //            Serial.print(F("GPS_REAL: Lat=")); Serial.print(current_tractor_gps_actual.latitude, 6);
+  //            Serial.print(F(", Lon=")); Serial.println(current_tractor_gps_actual.longitude, 6);
+  //        }
+  //    }
+  // }
+  // --- KẾT THÚC PHẦN CẦN THAY THẾ ---
+  // 22.626860129985378, 120.2656864793982
+  // === BẮT ĐẦU PHẦN MÔ PHỎNG ĐỂ TEST (XÓA KHI CÓ GPS THỰC) ===
+  static unsigned long lastGpsSimTime = 0;
+  if (millis() - lastGpsSimTime > 3000 && !field_vertices_gps.empty())
+  { // Cập nhật mô phỏng mỗi 3 giây
+    lastGpsSimTime = millis();
+    // Di chuyển ngẫu nhiên một chút từ điểm đầu tiên của thửa ruộng để mô phỏng
+    // current_tractor_gps_actual.latitude = field_vertices_gps[0].latitude + (double)(rand() % 100 - 50) / 200000.0;   // Thay đổi nhỏ
+    // current_tractor_gps_actual.longitude = field_vertices_gps[0].longitude + (double)(rand() % 100 - 50) / 200000.0; // Thay đổi nhỏ
+    current_tractor_gps_actual.latitude = 22.626860129985378;                                                        // Thay đổi nhỏ
+    current_tractor_gps_actual.longitude = 120.2656864793982;                                                        // Thay đổi nhỏ
+    new_tractor_gps_data_received = true;
+
+    Serial.print(F("SIM_GPS: New tractor pos: "));
+    Serial.print(current_tractor_gps_actual.latitude, 6);
+    Serial.print(F(", "));
+    Serial.println(current_tractor_gps_actual.longitude, 6);
+  }
+  // === KẾT THÚC PHẦN MÔ PHỎNG ===
+}
+
+// Hàm trợ giúp để lấy kích thước của ảnh máy cày dựa trên ID ảnh
+void getTractorPicDimensions(int pic_id, int &width, int &height)
+{
+  if (pic_id == TRACTOR_PIC_ID_UP || pic_id == TRACTOR_PIC_ID_DOWN)
+  {
+    width = TRACTOR_PIC_VERTICAL_WIDTH;
+    height = TRACTOR_PIC_VERTICAL_HEIGHT;
+  }
+  else if (pic_id == TRACTOR_PIC_ID_LEFT || pic_id == TRACTOR_PIC_ID_RIGHT)
+  {
+    width = TRACTOR_PIC_HORIZONTAL_WIDTH;
+    height = TRACTOR_PIC_HORIZONTAL_HEIGHT;
+  }
+  else
+  {
+    // Mặc định nếu ID không xác định (có thể là TRACTOR_PIC_ID_DEFAULT)
+    // Nên kiểm tra TRACTOR_PIC_ID_DEFAULT thuộc loại nào
+    if (TRACTOR_PIC_ID_DEFAULT == TRACTOR_PIC_ID_UP || TRACTOR_PIC_ID_DEFAULT == TRACTOR_PIC_ID_DOWN)
+    {
+      width = TRACTOR_PIC_VERTICAL_WIDTH;
+      height = TRACTOR_PIC_VERTICAL_HEIGHT;
+    }
+    else
+    {
+      width = TRACTOR_PIC_HORIZONTAL_WIDTH;
+      height = TRACTOR_PIC_HORIZONTAL_HEIGHT;
+    }
+  }
 }

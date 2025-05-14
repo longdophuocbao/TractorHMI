@@ -2,9 +2,6 @@
 
 Dự án này triển khai một hệ thống tạo đường đi ziczac (boustrophedon) tự động cho các ứng dụng nông nghiệp chính xác, sử dụng vi điều khiển ESP32, nhận đầu vào tọa độ GPS của thửa ruộng và hiển thị trực quan trên màn hình Nextion HMI. Đường đi được tạo ra đảm bảo tâm của nông cụ luôn cách biên của thửa ruộng một khoảng an toàn bằng một nửa chiều rộng làm việc.
 
-![Hình ảnh minh họa đường đi](đường_dẫn_đến_ảnh_của_bạn.png)
-*(Thay thế `đường_dẫn_đến_ảnh_của_bạn.png` bằng đường dẫn thực tế đến file ảnh `image_d3c7b1.png` hoặc một ảnh minh họa khác của dự án)*
-
 ## Tính Năng Chính
 
 * **Nhập liệu GPS:** Cho phép người dùng nhập tọa độ GPS (kinh độ, vĩ độ) của các đỉnh thửa ruộng thông qua Serial Monitor.
