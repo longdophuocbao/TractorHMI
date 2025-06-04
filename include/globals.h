@@ -59,6 +59,9 @@ extern const int TRACTOR_PIC_VERTICAL_HEIGHT;
 extern const int TRACTOR_PIC_HORIZONTAL_WIDTH;
 extern const int TRACTOR_PIC_HORIZONTAL_HEIGHT;
 
+extern const int TRACTOR_PIC_FIXED_WIDTH;
+extern const int TRACTOR_PIC_FIXED_HEIGHT;
+
 extern const int TRACTOR_PIC_ID_DEFAULT;
 extern int current_tractor_display_pic_id; // ID ảnh máy cày sẽ được vẽ
 extern int previous_tractor_display_pic_id;
@@ -68,5 +71,20 @@ extern Point current_tractor_screen_actual;         //
 extern Point previous_tractor_screen_actual;         // Lưu vị trí màn hình trước đó để xóa
 extern bool has_valid_previous_tractor_pos;   // Cờ cho biết có vị trí cũ hợp lệ để xóa không
 extern bool new_tractor_gps_data_received;     // Cờ báo có dữ liệu GPS mới
+
+extern uint16_t g_svnum; // Số lượng vệ tinh GPS
+extern float g_yaw;      // Góc phương vị (Yaw) của máy cày (độ)
+extern float g_pitch;    // Góc Pitch của máy cày (độ)
+extern float g_roll;     // Góc Roll của máy cày (độ)
+extern float g_longitude; // Kinh độ (decimal degrees)
+extern float g_latitude;  // Vĩ độ (decimal degrees)
+extern float g_pdop;      // Độ chính xác vị trí (Position Dilution of Precision)
+extern float g_hdop;      // Độ chính xác ngang (Horizontal Dilution of Precision)
+extern float g_vdop;      // Độ chính xác dọc (Vertical Dilution of Precision)
+extern float g_altitude;    // Độ cao GPS tính bằng mét
+extern float g_heading;            // Hướng GPS tính bằng độ
+extern float g_groundSpeed;        // Tốc độ di chuyển trên mặt đất GPS tính bằng km/h
+
+
 
 #endif // GLOBALS_H

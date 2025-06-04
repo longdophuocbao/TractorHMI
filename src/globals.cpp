@@ -2,8 +2,8 @@
 #include "HMI_Display.h"
 
 const unsigned long BAUDRATE = 115200; // Chân RX của Nextion
-const int8_t RX_PIN = 18; // Chân RX của Nextion
-const int8_t TX_PIN = 19; // Chân TX của Nextion
+const int8_t RX_PIN = 18;              // Chân RX của Nextion
+const int8_t TX_PIN = 19;              // Chân TX của Nextion
 
 // Định nghĩa đối tượng HMI_Display toàn cục
 HardwareSerial NextionSerial = Serial2; // Sử dụng Serial2 cho Nextion
@@ -14,9 +14,9 @@ std::vector<GpsPoint> field_vertices_gps; // Lưu tọa độ GPS gốc
 std::vector<Point> field_vertices_screen; // Lưu tọa độ màn hình đã scale (Point double)
 
 double min_lon_gps = 0.0, max_lon_gps = 0.0, min_lat_gps = 0.0, max_lat_gps = 0.0; // Biên GPS
-float scale_factor_combined = 0.0f;                                               // Hệ số scale chung từ độ sang pixel
-float offset_x_for_screen = 0.0f, offset_y_for_screen = 0.0f;                     // Offset để căn giữa trên màn hình
-double average_latitude_rad = 0.0;                                               // Vĩ độ trung bình (radian) để tính toán chuyển đổi
+float scale_factor_combined = 0.0f;                                                // Hệ số scale chung từ độ sang pixel
+float offset_x_for_screen = 0.0f, offset_y_for_screen = 0.0f;                      // Offset để căn giữa trên màn hình
+double average_latitude_rad = 0.0;                                                 // Vĩ độ trung bình (radian) để tính toán chuyển đổi
 
 ProgramState currentState = WAITING_FOR_POINTS; // Trạng thái chương trình
 int StartPoint = 0;                             // Chỉ số đỉnh bắt đầu gần nhất
@@ -29,7 +29,7 @@ const int GREEN = 2016;
 const int BLUE = 31;
 const int RED = 63488;
 const int YELLOW = 65504;
-const int SCREEN_BACKGROUND_COLOR = 17424;
+const int SCREEN_BACKGROUND_COLOR = 17424; // 63289
 
 // KÍCH THƯỚC MÀN HÌNH NEXTION VÀ PADDING
 const int SCREEN_WIDTH_PX = 500;
@@ -40,7 +40,7 @@ const int SCREEN_PADDING_PX = 10;
 const float METERS_PER_DEGREE_LATITUDE = 111132.954f; // Hằng số gần đúng
 
 // Chiều rộng làm việc thực tế (mét) và quy đổi sang pixel
-float working_width_real_meters = 1.4f; // Ví dụ: nông cụ rộng 4 mét
+float working_width_real_meters = 1.5f; // Ví dụ: nông cụ rộng 4 mét
 int working_width_px = 0;               // Chiều rộng làm việc đã scale sang pixel (sẽ được tính toán)
 
 const double GEOMETRY_EPSILON = 1e-9;
@@ -49,13 +49,16 @@ const int TRACTOR_PIC_ID_UP = 9;
 const int TRACTOR_PIC_ID_RIGHT = 10;
 const int TRACTOR_PIC_ID_LEFT = 11;
 const int TRACTOR_PIC_ID_DOWN = 12;
-const int TRACTOR_PIC_WIDTH = 22;  
+const int TRACTOR_PIC_WIDTH = 22;
 const int TRACTOR_PIC_HEIGHT = 36;
 
 const int TRACTOR_PIC_VERTICAL_WIDTH = 22;
 const int TRACTOR_PIC_VERTICAL_HEIGHT = 36;
 const int TRACTOR_PIC_HORIZONTAL_WIDTH = 36;
 const int TRACTOR_PIC_HORIZONTAL_HEIGHT = 22;
+
+const int TRACTOR_PIC_FIXED_WIDTH = 43;
+const int TRACTOR_PIC_FIXED_HEIGHT = 43;
 
 const int TRACTOR_PIC_ID_DEFAULT = TRACTOR_PIC_ID_UP;
 int current_tractor_display_pic_id = TRACTOR_PIC_ID_DEFAULT; // ID ảnh máy cày sẽ được vẽ
@@ -67,3 +70,17 @@ Point current_tractor_screen_actual;         // Tọa độ màn hình tương �
 Point previous_tractor_screen_actual;        // Lưu vị trí màn hình trước đó để xóa
 bool has_valid_previous_tractor_pos = false; // Cờ cho biết có vị trí cũ hợp lệ để xóa không
 bool new_tractor_gps_data_received = false;  // Cờ báo có dữ liệu GPS mới
+
+uint16_t g_svnum = 0;    // Số lượng vệ tinh GPS
+float g_yaw = 0.0;       // Góc phương vị (Yaw) của máy cày (độ)
+float g_roll = 0.0;      // Góc lăn (Roll) của máy cày (độ)
+float g_pitch = 0.0;     // Góc nghiêng (Pitch) của máy cày (độ)
+float g_longitude = 0.0; // Kinh độ (decimal degrees)
+float g_latitude = 0.0;  // Vĩ độ (decimal degrees)
+float g_pdop = 0.0;      // Độ chính xác vị trí (Position Dilution of Precision)
+float g_hdop = 0.0;      // Độ chính xác ngang (Horizontal Dilution of Precision)
+float g_vdop = 0.0;      // Độ chính xác dọc (Vertical Dilution of Precision)
+float g_altitude= 0.0;          // Độ cao GPS tính bằng mét
+float g_heading = 0.0;          // Hướng GPS tính bằng độ
+float g_groundSpeed = 0.0;      // Tốc độ di chuyển trên mặt đất GPS tính bằng km/h
+

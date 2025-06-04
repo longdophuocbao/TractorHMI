@@ -14,7 +14,7 @@ void resetAndClear()
 {
   field_vertices_gps.clear();
   field_vertices_screen.clear();
-  hmi.clearScreen(SCREEN_BACKGROUND_COLOR); // Xóa màn hình HMI với màu trắng
+  //hmi.clearScreen(SCREEN_BACKGROUND_COLOR); // Xóa màn hình HMI với màu trắng
   currentState = WAITING_FOR_POINTS;
   StartPoint = 0; // Reset các giá trị về mặc định
   StartDir = 0;
@@ -37,21 +37,21 @@ void handlePointInput()
     if (input.equalsIgnoreCase("done"))
     {
       // Tùy chọn: Thêm điểm cố định để test nhanh
-      // field_vertices_gps.push_back({120.26566389135687, 22.626949475307885});
-      // field_vertices_gps.push_back({120.26609465404412, 22.627049646169556});
-      // field_vertices_gps.push_back({120.26614325919708, 22.626493423503955});
-      // field_vertices_gps.push_back({120.26563962832518, 22.62629604619295});
-      field_vertices_gps.push_back({120.26567222968173, 22.62686995853145});
-      field_vertices_gps.push_back({120.26572065449193, 22.626871898407174});
-      field_vertices_gps.push_back({120.26572388062435, 22.626916585260386});
-      field_vertices_gps.push_back({120.2659776718851, 22.62691692916119});
-      field_vertices_gps.push_back({120.26597749948263, 22.626875018365492});
-      field_vertices_gps.push_back({120.26602567463398, 22.626870349228255});
+      field_vertices_gps.push_back({120.26566389135687, 22.626949475307885});
+      field_vertices_gps.push_back({120.26609465404412, 22.627049646169556});
+      field_vertices_gps.push_back({120.26614325919708, 22.626493423503955});
+      field_vertices_gps.push_back({120.26563962832518, 22.62629604619295});
+      // field_vertices_gps.push_back({120.26567222968173, 22.62686995853145});
+      // field_vertices_gps.push_back({120.26572065449193, 22.626871898407174});
+      // field_vertices_gps.push_back({120.26572388062435, 22.626916585260386});
+      // field_vertices_gps.push_back({120.2659776718851, 22.62691692916119});
+      // field_vertices_gps.push_back({120.26597749948263, 22.626875018365492});
+      // field_vertices_gps.push_back({120.26602567463398, 22.626870349228255});
 
-      field_vertices_gps.push_back({120.26602428567377, 22.626499333091026});
-      field_vertices_gps.push_back({120.26566899973842, 22.62647562599012});
+      // field_vertices_gps.push_back({120.26602428567377, 22.626499333091026});
+      // field_vertices_gps.push_back({120.26566899973842, 22.62647562599012});
 
-          if (field_vertices_gps.size() >= 3)
+      if (field_vertices_gps.size() >= 3)
       {
         Serial.println(F("Hoan tat nhap diem. Dang tinh toan scale va xu ly..."));
         calculateScaleAndTransformPoints();
@@ -64,7 +64,8 @@ void handlePointInput()
     }
     else if (input.equalsIgnoreCase("clear"))
     {
-      resetAndClear();
+      hmi.visPic(9, 0); // Ẩn ảnh máy cày
+      // resetAndClear();
     }
     else if (input.equalsIgnoreCase("changestart"))
     {
@@ -130,6 +131,40 @@ void handlePointInput()
         Serial.println(F("Loi: Lenh khong hop le."));
       }
     }
+  }
+  char recei = hmi.receiveCommand(); // Gọi hàm nhận lệnh
+  if (recei == 0x12) // Nếu có lệnh mới nhận được
+  {
+    Serial.printf("snum %d, longitude: %f, Latitude: %f\n",g_svnum, g_longitude, g_latitude);
+    field_vertices_gps.push_back({g_longitude, g_latitude});
+    digitalWrite(33, HIGH); // Bật LED tích hợp
+    delay(200);             // Giữ LED sáng trong 1 giây
+    digitalWrite(33, LOW);  // Tắt LED tích hợp
+  }
+  if (recei == 0x14)
+  {
+    if (field_vertices_gps.size() >= 3)
+    {
+      Serial.println(F("Hoan tat nhap diem. Dang tinh toan scale va xu ly..."));
+      calculateScaleAndTransformPoints();
+      currentState = POINTS_ENTERED_READY_TO_DRAW;
+    }
+    else
+    {
+      Serial.println(F("Loi: Can it nhat 3 diem GPS. Vui long nhap them."));
+    }
+    digitalWrite(33, HIGH); // Bật LED tích hợp
+    delay(100);             // Giữ LED sáng trong 1 giây
+    digitalWrite(33, LOW);
+    delay(100); // Giữ LED sáng trong 1 giây
+    digitalWrite(33, HIGH); // Bật LED tích hợp
+    delay(100);
+    digitalWrite(33, LOW);
+    delay(100);             // Giữ LED sáng trong 1 giây
+    digitalWrite(33, HIGH); // Bật LED tích hợp
+    delay(100);
+    digitalWrite(33, LOW);  // Tắt LED tích hợp
+    StartPoint = field_vertices_gps.size()-1;
   }
 }
 
@@ -246,7 +281,7 @@ void drawFieldAndPath()
     return;
   }
 
-  hmi.clearScreen(SCREEN_BACKGROUND_COLOR); // Xóa màn hình trước khi vẽ mới
+  // hmi.clearScreen(SCREEN_BACKGROUND_COLOR); // Xóa màn hình trước khi vẽ mới
 
   // Vẽ các điểm đỉnh đã scale
   Serial.println(F("Ve cac diem dinh (man hinh):"));
@@ -555,13 +590,16 @@ return proj_a < proj_b; });
 
   return clipped_and_shrunk_segments;
 }
+std::vector<Point> g_final_path_points;
+std::vector<Point> g_polygon_vertices;
 
 void generatePath(const std::vector<Point> &polygon_vertices,
-                  double workingWidth,
-                  int startVertexIndex, // StartPoint từ biến toàn cục
-                  int startDirGlobal,   // StartDir từ biến toàn cục
-                  HMI_Display &hmi_display)
+                                        double workingWidth,
+                                        int startVertexIndex, // StartPoint từ biến toàn cục
+                                        int startDirGlobal,   // StartDir từ biến toàn cục
+                                        HMI_Display &hmi_display)
 {
+  g_polygon_vertices = polygon_vertices; // Lưu đa giác vào biến toàn cục để vẽ sau
   // 1. Kiểm tra đầu vào cơ bản và xác định actualEdgeChoiceForOrientation
   // ... (Logic này giữ nguyên như phiên bản trước, xác định actualEdgeChoiceForOrientation
   //      dựa trên startVertexIndex và startDirGlobal) ...
@@ -809,19 +847,19 @@ return (center_a - edge_ref_p1_for_sort).dot(inward_offset_dir) < (center_b - ed
   if (final_path_points.size() >= 2)
   {
     Serial.println(F("GP: Drawing final path..."));
-    hmi_display.drawPointMarker(final_path_points.front(), GREEN);
-    hmi_display.drawPic(final_path_points.front().x - TRACTOR_PIC_WIDTH / 2, final_path_points.front().y - TRACTOR_PIC_HEIGHT / 2, TRACTOR_PIC_ID_DEFAULT);
+    hmi_display.drawPointMarker(final_path_points.front(), GREEN); // Vẽ điểm đầu tiên
+    //hmi_display.drawPic(final_path_points.front().x - TRACTOR_PIC_WIDTH / 2, final_path_points.front().y - TRACTOR_PIC_HEIGHT / 2, TRACTOR_PIC_ID_DEFAULT);
+    hmi.visPic(25,1);
+    String command = "p1.x=" + String((int)(final_path_points.front().x - TRACTOR_PIC_FIXED_WIDTH / 2));
+    hmi.sendCommand(command);
+    command = "p1.y=" + String((int)(final_path_points.front().y - TRACTOR_PIC_FIXED_HEIGHT / 2));
+    hmi.sendCommand(command);
+    g_final_path_points = final_path_points;
     for (size_t i = 0; i < final_path_points.size() - 1; ++i)
     {
       hmi_display.drawLine(final_path_points[i], final_path_points[i + 1], YELLOW);
     }
-    hmi_display.drawPointMarker(final_path_points.back(), RED);
-    for(int i;i<255;i++ )
-    {
-      Serial.println(i);
-      hmi.visPic(i, 0);
-      delay(500);
-    }
+    hmi_display.drawPointMarker(final_path_points.back(), RED); // Vẽ điểm cuối cùng
   }
   else
   {
@@ -832,6 +870,7 @@ return (center_a - edge_ref_p1_for_sort).dot(inward_offset_dir) < (center_b - ed
 
 void updateAndDrawTractorPositionHMI()
 {
+  // Bước 1: Kiểm tra điều kiện để thực thi
   if (!new_tractor_gps_data_received)
   {
     return;
@@ -843,75 +882,153 @@ void updateAndDrawTractorPositionHMI()
     return;
   }
 
-  // 1. Xác định vị trí TÂM mới của máy cày trên màn hình
+  // Bước 2: Chuyển đổi tọa độ GPS của máy cày sang tọa độ màn hình
   Point new_tractor_center_screen = transformGpsToScreen(current_tractor_gps_actual);
 
-  // 2. Xác định pic_id MỚI dựa trên hướng di chuyển
-  int pic_id_to_draw_now = TRACTOR_PIC_ID_DEFAULT; // Mặc định ban đầu
+  // Bước 3: Xác định ID ảnh máy cày dựa trên g_yaw (0-359 độ)
+  int pic_id_to_draw_now;
+  double current_yaw = g_yaw;
 
+  // Chuẩn hóa yaw về khoảng [0.0, 360.0)
+  if (current_yaw >= 360.0)
+    current_yaw = fmod(current_yaw, 360.0);
+  if (current_yaw < 0.0)
+    current_yaw = fmod(current_yaw, 360.0) + 360.0;
+
+  pic_id_to_draw_now = static_cast<int>(std::round(current_yaw));
+
+  // Đảm bảo ID nằm trong khoảng 0-359 sau khi làm tròn
+  if (pic_id_to_draw_now >= 360)
+    pic_id_to_draw_now = 0;
+  if (pic_id_to_draw_now < 0)
+    pic_id_to_draw_now = 0; // Phòng trường hợp làm tròn số âm nhỏ
+
+  current_tractor_display_pic_id = pic_id_to_draw_now + 15;
+
+  // Bước 4: Kích thước ảnh MỚI là cố định (43x43)
+  // Không cần gọi getTractorPicDimensions nữa.
+
+  // Bước 5: Tính tọa độ góc trên-trái (top-left) để vẽ ảnh MỚI
+  int new_pic_draw_x = static_cast<int>(std::round(new_tractor_center_screen.x - (double)TRACTOR_PIC_FIXED_WIDTH / 2.0));
+  int new_pic_draw_y = static_cast<int>(std::round(new_tractor_center_screen.y - (double)TRACTOR_PIC_FIXED_HEIGHT / 2.0));
+
+  // Bước 6: Xóa ảnh CŨ (nếu có)
   if (has_valid_previous_tractor_pos)
   {
-    double deltaX = new_tractor_center_screen.x - previous_tractor_screen_actual.x; // previous_tractor_screen_actual là TÂM của ảnh trước
-    double deltaY = new_tractor_center_screen.y - previous_tractor_screen_actual.y;
-    double move_threshold = 1.0;
+    // Kích thước ảnh TRƯỚC ĐÓ cũng là cố định (43x43)
+    int prev_pic_draw_x = static_cast<int>(std::round(previous_tractor_screen_actual.x - (double)TRACTOR_PIC_FIXED_WIDTH / 2.0));
+    int prev_pic_draw_y = static_cast<int>(std::round(previous_tractor_screen_actual.y - (double)TRACTOR_PIC_FIXED_HEIGHT / 2.0));
 
-    if (std::fabs(deltaX) > std::fabs(deltaY) && std::fabs(deltaX) > move_threshold)
-    {
-      pic_id_to_draw_now = (deltaX > 0) ? TRACTOR_PIC_ID_RIGHT : TRACTOR_PIC_ID_LEFT;
-    }
-    else if (std::fabs(deltaY) > std::fabs(deltaX) && std::fabs(deltaY) > move_threshold)
-    {
-      pic_id_to_draw_now = (deltaY > 0) ? TRACTOR_PIC_ID_DOWN : TRACTOR_PIC_ID_UP;
-    }
-    else
-    {
-      // Không di chuyển đáng kể, giữ nguyên ID ảnh của khung hình trước
-      pic_id_to_draw_now = current_tractor_display_pic_id; // current_tractor_display_pic_id lưu ID của ảnh đang hiển thị (từ frame trước)
-    }
+    // hmi.fillRect(prev_pic_draw_x, prev_pic_draw_y, TRACTOR_PIC_FIXED_WIDTH, TRACTOR_PIC_FIXED_HEIGHT, SCREEN_BACKGROUND_COLOR);
+    //hmi.visPic(previous_tractor_display_pic_id, 0); // Ẩn ảnh cũ
   }
-  else
+
+  // Bước 7: Vẽ ảnh MỚI của máy cày lên màn hình
+  for (size_t i = 0; i < field_vertices_screen.size(); ++i)
   {
-    // Lần đầu vẽ hoặc sau khi reset
-    pic_id_to_draw_now = TRACTOR_PIC_ID_DEFAULT;
+    hmi.drawPointMarker(field_vertices_screen[i], RED);
   }
-  // Cập nhật ID ảnh sẽ được vẽ trong khung hình này
-  current_tractor_display_pic_id = pic_id_to_draw_now;
-
-  // 3. Lấy kích thước cho ảnh MỚI sắp vẽ
-  int current_pic_w, current_pic_h;
-  getTractorPicDimensions(current_tractor_display_pic_id, current_pic_w, current_pic_h);
-
-  // 4. Tính tọa độ góc trên-trái (top-left) để vẽ ảnh MỚI (căn giữa theo new_tractor_center_screen)
-  int new_pic_draw_x = static_cast<int>(std::round(new_tractor_center_screen.x - (double)current_pic_w / 2.0));
-  int new_pic_draw_y = static_cast<int>(std::round(new_tractor_center_screen.y - (double)current_pic_h / 2.0));
-
-  // 5. Xóa ảnh CŨ nếu có
-  if (has_valid_previous_tractor_pos)
+    hmi.drawPointMarker(g_final_path_points.front(), GREEN);
+  for (size_t i = 0; i < g_polygon_vertices.size(); ++i)
   {
-    // Lấy kích thước của ảnh TRƯỚC ĐÓ đã vẽ (dựa vào previous_tractor_display_pic_id)
-    int prev_pic_w, prev_pic_h;
-    getTractorPicDimensions(previous_tractor_display_pic_id, prev_pic_w, prev_pic_h);
-
-    // Tính tọa độ top-left của ảnh TRƯỚC ĐÓ (dựa vào previous_tractor_screen_actual là TÂM của ảnh đó)
-    int prev_pic_draw_x = static_cast<int>(std::round(previous_tractor_screen_actual.x - (double)prev_pic_w / 2.0));
-    int prev_pic_draw_y = static_cast<int>(std::round(previous_tractor_screen_actual.y - (double)prev_pic_h / 2.0));
-
-    // Vẽ hình chữ nhật MÀU NỀN đè lên vị trí ảnh CŨ
-    
-    // hmi.fillRect(prev_pic_draw_x, prev_pic_draw_y, prev_pic_w, prev_pic_h, SCREEN_BACKGROUND_COLOR);
-    delay(1000); // Cân nhắc nếu cần thiết
+    hmi.drawLine(g_polygon_vertices[i], g_polygon_vertices[(i + 1) % g_polygon_vertices.size()], BLUE);
   }
+  for (size_t i = 0; i < g_final_path_points.size() - 1; ++i)
+  {
+    hmi.drawLine(g_final_path_points[i], g_final_path_points[i + 1], YELLOW);
+  }
+  hmi.drawPointMarker(g_final_path_points.back(), RED);
 
-  // 6. Vẽ ảnh MỚI
-  // hmi.drawPic(new_pic_draw_x, new_pic_draw_y, current_tractor_display_pic_id);
+  hmi.changePic1(new_pic_draw_x, new_pic_draw_y, current_tractor_display_pic_id);
+  // hmi.changePic(25,new_pic_draw_x, new_pic_draw_y, current_tractor_display_pic_id);
 
-  // Serial.print(...); // Log debug nếu cần
-
-  // 7. Cập nhật thông tin cho khung hình tiếp theo
-  previous_tractor_screen_actual = new_tractor_center_screen;       // Lưu lại TÂM của ảnh vừa vẽ
-  previous_tractor_display_pic_id = current_tractor_display_pic_id; // Lưu lại ID của ảnh vừa vẽ
+  // Bước 8: Cập nhật thông tin cho lần gọi hàm tiếp theo
+  previous_tractor_screen_actual = new_tractor_center_screen;
+  previous_tractor_display_pic_id = current_tractor_display_pic_id;
   has_valid_previous_tractor_pos = true;
 }
+// void updateAndDrawTractorPositionHMI()
+// {
+//   if (!new_tractor_gps_data_received)
+//   {
+//     return;
+//   }
+//   new_tractor_gps_data_received = false;
+
+//   if (scale_factor_combined == 0 && field_vertices_gps.size() < 3)
+//   {
+//     return;
+//   }
+
+//   // 1. Xác định vị trí TÂM mới của máy cày trên màn hình
+//   Point new_tractor_center_screen = transformGpsToScreen(current_tractor_gps_actual);
+
+//   // 2. Xác định pic_id MỚI dựa trên hướng di chuyển
+//   int pic_id_to_draw_now = TRACTOR_PIC_ID_DEFAULT; // Mặc định ban đầu
+
+//   if (has_valid_previous_tractor_pos)
+//   {
+//     double deltaX = new_tractor_center_screen.x - previous_tractor_screen_actual.x; // previous_tractor_screen_actual là TÂM của ảnh trước
+//     double deltaY = new_tractor_center_screen.y - previous_tractor_screen_actual.y;
+//     double move_threshold = 1.0;
+
+//     if (std::fabs(deltaX) > std::fabs(deltaY) && std::fabs(deltaX) > move_threshold)
+//     {
+//       pic_id_to_draw_now = (deltaX > 0) ? TRACTOR_PIC_ID_RIGHT : TRACTOR_PIC_ID_LEFT;
+//     }
+//     else if (std::fabs(deltaY) > std::fabs(deltaX) && std::fabs(deltaY) > move_threshold)
+//     {
+//       pic_id_to_draw_now = (deltaY > 0) ? TRACTOR_PIC_ID_DOWN : TRACTOR_PIC_ID_UP;
+//     }
+//     else
+//     {
+//       // Không di chuyển đáng kể, giữ nguyên ID ảnh của khung hình trước
+//       pic_id_to_draw_now = current_tractor_display_pic_id; // current_tractor_display_pic_id lưu ID của ảnh đang hiển thị (từ frame trước)
+//     }
+//   }
+//   else
+//   {
+//     // Lần đầu vẽ hoặc sau khi reset
+//     pic_id_to_draw_now = TRACTOR_PIC_ID_DEFAULT;
+//   }
+//   // Cập nhật ID ảnh sẽ được vẽ trong khung hình này
+//   current_tractor_display_pic_id = pic_id_to_draw_now;
+
+//   // 3. Lấy kích thước cho ảnh MỚI sắp vẽ
+//   int current_pic_w, current_pic_h;
+//   getTractorPicDimensions(current_tractor_display_pic_id, current_pic_w, current_pic_h);
+
+//   // 4. Tính tọa độ góc trên-trái (top-left) để vẽ ảnh MỚI (căn giữa theo new_tractor_center_screen)
+//   int new_pic_draw_x = static_cast<int>(std::round(new_tractor_center_screen.x - (double)current_pic_w / 2.0));
+//   int new_pic_draw_y = static_cast<int>(std::round(new_tractor_center_screen.y - (double)current_pic_h / 2.0));
+
+//   // 5. Xóa ảnh CŨ nếu có
+//   if (has_valid_previous_tractor_pos)
+//   {
+//     // Lấy kích thước của ảnh TRƯỚC ĐÓ đã vẽ (dựa vào previous_tractor_display_pic_id)
+//     int prev_pic_w, prev_pic_h;
+//     getTractorPicDimensions(previous_tractor_display_pic_id, prev_pic_w, prev_pic_h);
+
+//     // Tính tọa độ top-left của ảnh TRƯỚC ĐÓ (dựa vào previous_tractor_screen_actual là TÂM của ảnh đó)
+//     int prev_pic_draw_x = static_cast<int>(std::round(previous_tractor_screen_actual.x - (double)prev_pic_w / 2.0));
+//     int prev_pic_draw_y = static_cast<int>(std::round(previous_tractor_screen_actual.y - (double)prev_pic_h / 2.0));
+
+//     // Vẽ hình chữ nhật MÀU NỀN đè lên vị trí ảnh CŨ
+    
+//     hmi.fillRect(prev_pic_draw_x, prev_pic_draw_y, prev_pic_w, prev_pic_h, SCREEN_BACKGROUND_COLOR);
+//     delay(100); // Cân nhắc nếu cần thiết
+//   }
+
+//   // 6. Vẽ ảnh MỚI
+//   hmi.drawPic(new_pic_draw_x, new_pic_draw_y, current_tractor_display_pic_id);
+
+//   // Serial.print(...); // Log debug nếu cần
+
+//   // 7. Cập nhật thông tin cho khung hình tiếp theo
+//   previous_tractor_screen_actual = new_tractor_center_screen;       // Lưu lại TÂM của ảnh vừa vẽ
+//   previous_tractor_display_pic_id = current_tractor_display_pic_id; // Lưu lại ID của ảnh vừa vẽ
+//   has_valid_previous_tractor_pos = true;
+// }
 
 // Hàm này cần được gọi trong loop()
 // Bạn cần tự hoàn thiện phần đọc và phân tích NMEA từ module GPS thực tế
@@ -935,20 +1052,20 @@ void readAndProcessGpsData()
   // 22.626860129985378, 120.2656864793982
   // === BẮT ĐẦU PHẦN MÔ PHỎNG ĐỂ TEST (XÓA KHI CÓ GPS THỰC) ===
   static unsigned long lastGpsSimTime = 0;
-  if (millis() - lastGpsSimTime > 3000 && !field_vertices_gps.empty())
+  if (millis() - lastGpsSimTime > 100 && !field_vertices_gps.empty())
   { // Cập nhật mô phỏng mỗi 3 giây
     lastGpsSimTime = millis();
     // Di chuyển ngẫu nhiên một chút từ điểm đầu tiên của thửa ruộng để mô phỏng
-    // current_tractor_gps_actual.latitude = field_vertices_gps[0].latitude + (double)(rand() % 100 - 50) / 200000.0;   // Thay đổi nhỏ
-    // current_tractor_gps_actual.longitude = field_vertices_gps[0].longitude + (double)(rand() % 100 - 50) / 200000.0; // Thay đổi nhỏ
-    current_tractor_gps_actual.latitude = 22.626860129985378;                                                        // Thay đổi nhỏ
-    current_tractor_gps_actual.longitude = 120.2656864793982;                                                        // Thay đổi nhỏ
+    current_tractor_gps_actual.latitude = field_vertices_gps[0].latitude + (double)(rand() % 100 - 50) / 200000.0;   // Thay đổi nhỏ
+    current_tractor_gps_actual.longitude = field_vertices_gps[0].longitude + (double)(rand() % 100 - 50) / 200000.0; // Thay đổi nhỏ
+    // current_tractor_gps_actual.latitude = g_latitude;                                                        // Thay đổi nhỏ
+    // current_tractor_gps_actual.longitude = g_longitude;                                                        // Thay đổi nhỏ
     new_tractor_gps_data_received = true;
-
-    Serial.print(F("SIM_GPS: New tractor pos: "));
-    Serial.print(current_tractor_gps_actual.latitude, 6);
-    Serial.print(F(", "));
-    Serial.println(current_tractor_gps_actual.longitude, 6);
+    g_yaw++;
+    if (g_yaw >= 360.0)
+      g_yaw = 0.0; // Quay vòng lại sau 360 độ
+    Serial.printf(("GPS: New tractor pos: %.6f, %.6f, yaw=%.2f\n"),
+                  current_tractor_gps_actual.latitude, current_tractor_gps_actual.longitude, g_yaw);
   }
   // === KẾT THÚC PHẦN MÔ PHỎNG ===
 }

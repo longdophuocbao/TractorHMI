@@ -3,7 +3,6 @@
 
 #include <vector>
 #include "Point.h" // Nếu cấu trúc Point được tách riêng, hãy include file này
-
 // Forward declaration của HMI_Display
 class HMI_Display;
 
