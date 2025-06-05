@@ -870,67 +870,135 @@ return (center_a - edge_ref_p1_for_sort).dot(inward_offset_dir) < (center_b - ed
 
 void updateAndDrawTractorPositionHMI()
 {
-  // Bước 1: Kiểm tra điều kiện để thực thi
-  if (!new_tractor_gps_data_received)
+  // // Bước 1: Kiểm tra điều kiện để thực thi
+  // if (!new_tractor_gps_data_received)
+  // {
+  //   return;
+  // }
+  // new_tractor_gps_data_received = false;
+
+  // if (scale_factor_combined == 0 && field_vertices_gps.size() < 3)
+  // {
+  //   return;
+  // }
+
+  // // Bước 2: Chuyển đổi tọa độ GPS của máy cày sang tọa độ màn hình
+  // Point new_tractor_center_screen = transformGpsToScreen(current_tractor_gps_actual);
+
+  // // Bước 3: Xác định ID ảnh máy cày dựa trên g_yaw (0-359 độ)
+  // int pic_id_to_draw_now;
+  // double current_yaw = g_yaw;
+
+  // // Chuẩn hóa yaw về khoảng [0.0, 360.0)
+  // if (current_yaw >= 360.0)
+  //   current_yaw = fmod(current_yaw, 360.0);
+  // if (current_yaw < 0.0)
+  //   current_yaw = fmod(current_yaw, 360.0) + 360.0;
+
+  // pic_id_to_draw_now = static_cast<int>(std::round(current_yaw));
+
+  // // Đảm bảo ID nằm trong khoảng 0-359 sau khi làm tròn
+  // if (pic_id_to_draw_now >= 360)
+  //   pic_id_to_draw_now = 0;
+  // if (pic_id_to_draw_now < 0)
+  //   pic_id_to_draw_now = 0; // Phòng trường hợp làm tròn số âm nhỏ
+
+  // current_tractor_display_pic_id = pic_id_to_draw_now + 15;
+
+  // // Bước 5: Tính tọa độ góc trên-trái (top-left) để vẽ ảnh MỚI
+  // int new_pic_draw_x = static_cast<int>(std::round(new_tractor_center_screen.x - (double)TRACTOR_PIC_FIXED_WIDTH / 2.0));
+  // int new_pic_draw_y = static_cast<int>(std::round(new_tractor_center_screen.y - (double)TRACTOR_PIC_FIXED_HEIGHT / 2.0));
+
+  // // Bước 7: Vẽ ảnh MỚI của máy cày lên màn hình
+  // for (size_t i = 0; i < field_vertices_screen.size(); ++i)
+  // {
+  //   hmi.drawPointMarker(field_vertices_screen[i], RED);
+  // }
+  //   hmi.drawPointMarker(g_final_path_points.front(), GREEN);
+  // for (size_t i = 0; i < g_polygon_vertices.size(); ++i)
+  // {
+  //   hmi.drawLine(g_polygon_vertices[i], g_polygon_vertices[(i + 1) % g_polygon_vertices.size()], BLUE);
+  // }
+  // for (size_t i = 0; i < g_final_path_points.size() - 1; ++i)
+  // {
+  //   hmi.drawLine(g_final_path_points[i], g_final_path_points[i + 1], YELLOW);
+  // }
+  // hmi.drawPointMarker(g_final_path_points.back(), RED);
+
+  // hmi.changePic1(new_pic_draw_x, new_pic_draw_y, current_tractor_display_pic_id);
+
+  // // Bước 8: Cập nhật thông tin cho lần gọi hàm tiếp theo
+  // previous_tractor_screen_actual = new_tractor_center_screen;
+  // previous_tractor_display_pic_id = current_tractor_display_pic_id;
+  // has_valid_previous_tractor_pos = true;
+  if (scale_factor_combined == 0.0f || !origin_set)
   {
+    // Serial.println(F("UADT: Scale factor or EKF origin not set. Skipping tractor draw."));
     return;
   }
-  new_tractor_gps_data_received = false;
 
-  if (scale_factor_combined == 0 && field_vertices_gps.size() < 3)
-  {
-    return;
-  }
+  GpsPoint ekf_pos_as_gps;
+  ekf_pos_as_gps.longitude = lon_origin + (ekf_x / meters_per_deg_lon);
+  ekf_pos_as_gps.latitude = lat_origin + (ekf_y / METERS_PER_DEGREE_LATITUDE);
 
-  // Bước 2: Chuyển đổi tọa độ GPS của máy cày sang tọa độ màn hình
-  Point new_tractor_center_screen = transformGpsToScreen(current_tractor_gps_actual);
+  Point new_tractor_center_screen = transformGpsToScreen(ekf_pos_as_gps);
 
-  // Bước 3: Xác định ID ảnh máy cày dựa trên g_yaw (0-359 độ)
-  int pic_id_to_draw_now;
-  double current_yaw = g_yaw;
+  // Bước 3: Xác định ID ảnh máy cày dựa trên góc yaw từ EKF (ekf.x[4] là radian)
+  double current_yaw_rad = ekf_theta;               // Góc yaw từ EKF (radian), đã được chuẩn hóa trong [-PI, PI]
+  double current_yaw_deg = degrees(current_yaw_rad); // Chuyển sang độ, sẽ trong [-180, 180]
 
   // Chuẩn hóa yaw về khoảng [0.0, 360.0)
-  if (current_yaw >= 360.0)
-    current_yaw = fmod(current_yaw, 360.0);
-  if (current_yaw < 0.0)
-    current_yaw = fmod(current_yaw, 360.0) + 360.0;
+  if (current_yaw_deg < 0.0)
+  {
+    current_yaw_deg += 360.0;
+  }
+  if (current_yaw_deg >= 360.0)
+  { // Xử lý trường hợp gần 360 hoặc > 360 do làm tròn/tính toán
+    current_yaw_deg = fmod(current_yaw_deg, 360.0);
+  }
 
-  pic_id_to_draw_now = static_cast<int>(std::round(current_yaw));
+  int pic_id_base = static_cast<int>(std::round(current_yaw_deg));
 
   // Đảm bảo ID nằm trong khoảng 0-359 sau khi làm tròn
-  if (pic_id_to_draw_now >= 360)
-    pic_id_to_draw_now = 0;
-  if (pic_id_to_draw_now < 0)
-    pic_id_to_draw_now = 0; // Phòng trường hợp làm tròn số âm nhỏ
+  if (pic_id_base >= 360)
+    pic_id_base = 0;
+  // if (pic_id_base < 0) pic_id_base = 0; // Không nên xảy ra nếu chuẩn hóa đúng
 
-  current_tractor_display_pic_id = pic_id_to_draw_now + 15;
+  current_tractor_display_pic_id = pic_id_base + 15; // Giả sử offset 15 là đúng cho ID ảnh HMI
 
-  // Bước 5: Tính tọa độ góc trên-trái (top-left) để vẽ ảnh MỚI
+  // Bước 4: Tính tọa độ góc trên-trái (top-left) để vẽ ảnh MỚI
   int new_pic_draw_x = static_cast<int>(std::round(new_tractor_center_screen.x - (double)TRACTOR_PIC_FIXED_WIDTH / 2.0));
   int new_pic_draw_y = static_cast<int>(std::round(new_tractor_center_screen.y - (double)TRACTOR_PIC_FIXED_HEIGHT / 2.0));
 
-  // Bước 7: Vẽ ảnh MỚI của máy cày lên màn hình
-  for (size_t i = 0; i < field_vertices_screen.size(); ++i)
-  {
-    hmi.drawPointMarker(field_vertices_screen[i], RED);
+  // Bước 5: Vẽ ảnh MỚI của máy cày
+  // Bước 5: Vẽ lại các yếu tố tĩnh của bản đồ (nếu cần thiết mỗi lần)
+  // Để tối ưu, phần này nên được vẽ một lần khi bản đồ được tạo.
+  if (!field_vertices_screen.empty())
+  { // Các đỉnh gốc của thửa ruộng
+    for (size_t i = 0; i < field_vertices_screen.size(); ++i)
+    {
+      hmi.drawPointMarker(field_vertices_screen[i], RED);
+    }
   }
-    hmi.drawPointMarker(g_final_path_points.front(), GREEN);
-  for (size_t i = 0; i < g_polygon_vertices.size(); ++i)
-  {
-    hmi.drawLine(g_polygon_vertices[i], g_polygon_vertices[(i + 1) % g_polygon_vertices.size()], BLUE);
+  if (!g_polygon_vertices.empty())
+  { // Đường biên thửa ruộng (có thể giống field_vertices_screen)
+    for (size_t i = 0; i < g_polygon_vertices.size(); ++i)
+    {
+      hmi.drawLine(g_polygon_vertices[i], g_polygon_vertices[(i + 1) % g_polygon_vertices.size()], BLUE);
+    }
   }
-  for (size_t i = 0; i < g_final_path_points.size() - 1; ++i)
-  {
-    hmi.drawLine(g_final_path_points[i], g_final_path_points[i + 1], YELLOW);
+  if (g_final_path_points.size() >= 2)
+  {                                                                  // Đường đi zigzag
+    hmi.drawPointMarker(g_final_path_points.front(), GREEN);         // Điểm bắt đầu đường đi
+    for (size_t i = 0; i < g_final_path_points.size() - 1; ++i)
+    {
+      hmi.drawLine(g_final_path_points[i], g_final_path_points[i + 1], YELLOW);
+    }
+    hmi.drawPointMarker(g_final_path_points.back(), RED); // Điểm kết thúc đường đi
   }
-  hmi.drawPointMarker(g_final_path_points.back(), RED);
 
+  // Bước 6: Vẽ ảnh MỚI của máy cày lên màn hình bằng cách cập nhật đối tượng 'p1'
   hmi.changePic1(new_pic_draw_x, new_pic_draw_y, current_tractor_display_pic_id);
-
-  // Bước 8: Cập nhật thông tin cho lần gọi hàm tiếp theo
-  previous_tractor_screen_actual = new_tractor_center_screen;
-  previous_tractor_display_pic_id = current_tractor_display_pic_id;
-  has_valid_previous_tractor_pos = true;
 }
 
 // Hàm này cần được gọi trong loop()

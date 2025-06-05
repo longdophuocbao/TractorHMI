@@ -5,58 +5,44 @@
 #include <esp_now.h>
 #include <WiFi.h>
 
-#define _float_t double // Khuyến nghị dùng double để ổn định số học tốt hơn
-
-#define EKF_N 5 // Số lượng trạng thái: [x, y, vx, vy, theta]
-#define EKF_M 4 // Số lượng phép đo: [gps_x, gps_y, gps_vx, gps_vy]
-
-// Bao gồm thư viện EKF
-#include "tinyekf.h"
 
 typedef struct struct_message
 {
   float roll;
   float pitch;
   float yaw;
-  float longitude;    // Kinh độ (decimal degrees)
-  float latitude;     // Vĩ độ (decimal degrees)
-  uint16_t svnum;     // Số lượng vệ tinh GPS
-  float pdop;         // Độ chính xác vị trí (Position Dilution of Precision)
-  float hdop;         // Độ chính xác ngang (Horizontal Dilution of Precision)
-  float vdop;         // Độ chính xác dọc (Vertical Dilution of Precision)
-  float altitude;     // Độ cao GPS tính bằng mét
-  float heading;      // Hướng GPS tính bằng độ
-  float groundSpeed;  // Tốc độ di chuyển trên mặt đất GPS tính bằng km/h
-  float accelX;       // Gia tốc theo trục X (m/s^2)
-  float accelY;       // Gia tốc theo trục Y (m/s^2)
-  float accelZ;       // Gia tốc theo trục Z (m/s^2)
-  float angularVelX;  // Vận tốc góc theo trục X (°/s)
-  float angularVelY;  // Vận tốc góc theo trục Y (°/s)
-  float angularVelZ;  // Vận tốc góc theo trục Z (°/s)
-  int16_t fieldX;     // Giá trị từ trường theo trục X (đơn vị: LSB)
-  int16_t fieldY;     // Giá trị từ trường theo trục Y (đơn vị: LSB)
-  int16_t fieldZ;     // Giá trị từ trường theo trục Z (đơn vị: LSB)
+  float longitude;   // Kinh độ (decimal degrees)
+  float latitude;    // Vĩ độ (decimal degrees)
+  uint16_t svnum;    // Số lượng vệ tinh GPS
+  float pdop;        // Độ chính xác vị trí (Position Dilution of Precision)
+  float hdop;        // Độ chính xác ngang (Horizontal Dilution of Precision)
+  float vdop;        // Độ chính xác dọc (Vertical Dilution of Precision)
+  float altitude;    // Độ cao GPS tính bằng mét
+  float heading;     // Hướng GPS tính bằng độ
+  float groundSpeed; // Tốc độ di chuyển trên mặt đất GPS tính bằng km/h
+  float accelX;      // Gia tốc theo trục X (m/s^2)
+  float accelY;      // Gia tốc theo trục Y (m/s^2)
+  float accelZ;      // Gia tốc theo trục Z (m/s^2)
+  float angularVelX; // Vận tốc góc theo trục X (°/s)
+  float angularVelY; // Vận tốc góc theo trục Y (°/s)
+  float angularVelZ; // Vận tốc góc theo trục Z (°/s)
+  int16_t fieldX;    // Giá trị từ trường theo trục X (đơn vị: LSB)
+  int16_t fieldY;    // Giá trị từ trường theo trục Y (đơn vị: LSB)
+  int16_t fieldZ;    // Giá trị từ trường theo trục Z (đơn vị: LSB)
 } struct_message;
 
 struct_message receivedData;
 
 // ---------------- Biến toàn cục ----------------
-ekf_t ekf; // Struct EKF
+ekf_t ekf;
+
 bool revce_flag = false;
 
-float g_ax_body = 0.0;     // Gia tốc theo trục X trong hệ tọa độ thân xe (m/s^2)
-float g_ay_body = 0.0;     // Gia tốc theo trục Y trong hệ tọa độ thân xe
-float g_omega_body = 0.0;  // Vận tốc góc trong hệ tọa độ thân xe (độ/giây)
-
+float g_ax_body = 0.0;    // Gia tốc theo trục X trong hệ tọa độ thân xe (m/s^2)
+float g_ay_body = 0.0;    // Gia tốc theo trục Y trong hệ tọa độ thân xe
+float g_omega_body = 0.0; // Vận tốc góc trong hệ tọa độ thân xe (độ/giây)
 
 _float_t dt = 0.0;
-
-_float_t lat_origin = 0.0; // Sẽ được đặt bởi điểm GPS đầu tiên
-_float_t lon_origin = 0.0; // Sẽ được đặt bởi điểm GPS đầu tiên
-bool origin_set = false;
-
-const _float_t METERS_PER_DEG_LAT = 111132.954; // Mét xấp xỉ trên mỗi độ vĩ độ
-_float_t meters_per_deg_lon = 0.0;              // Sẽ được tính sau khi lat_origin được đặt
 
 _float_t gps_x = 0.0;  // Vị trí x từ GPS (tọa độ cục bộ)
 _float_t gps_y = 0.0;  // Vị trí y từ GPS
@@ -84,25 +70,25 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
     // Tiller_TractorAngle_filter = simpleKalmanFilter_2.updateEstimate(Tiller_TractorAngle);
     g_svnum = receivedData.svnum;
     g_yaw = receivedData.yaw;
-    g_roll = receivedData.roll;         // Lưu góc lăn (Roll) của máy cày
-    g_pitch = receivedData.pitch;       // Lưu góc nghiêng (Pitch) của máy cày
-    g_longitude = receivedData.longitude; // Lưu kinh độ
-    g_latitude = receivedData.latitude;   // Lưu vĩ độ
-    g_pdop = receivedData.pdop;           // Lưu độ chính xác vị trí
-    g_hdop = receivedData.hdop;           // Lưu độ chính xác ngang
-    g_vdop = receivedData.vdop;           // Lưu độ chính xác dọc
-    g_altitude = receivedData.altitude; // Lưu độ cao GPS
-    g_heading = receivedData.heading;   // Lưu hướng GPS
+    g_roll = receivedData.roll;               // Lưu góc lăn (Roll) của máy cày
+    g_pitch = receivedData.pitch;             // Lưu góc nghiêng (Pitch) của máy cày
+    g_longitude = receivedData.longitude;     // Lưu kinh độ
+    g_latitude = receivedData.latitude;       // Lưu vĩ độ
+    g_pdop = receivedData.pdop;               // Lưu độ chính xác vị trí
+    g_hdop = receivedData.hdop;               // Lưu độ chính xác ngang
+    g_vdop = receivedData.vdop;               // Lưu độ chính xác dọc
+    g_altitude = receivedData.altitude;       // Lưu độ cao GPS
+    g_heading = receivedData.heading;         // Lưu hướng GPS
     g_groundSpeed = receivedData.groundSpeed; // Lưu tốc độ di chuyển trên mặt đất GPS
-    g_accelX = receivedData.accelX;   // Lưu gia tốc theo trục X
-    g_accelY = receivedData.accelY;   // Lưu gia tốc theo trục Y
-    g_accelZ = receivedData.accelZ;   // Lưu gia tốc theo trục Z
+    g_accelX = receivedData.accelX;           // Lưu gia tốc theo trục X
+    g_accelY = receivedData.accelY;           // Lưu gia tốc theo trục Y
+    g_accelZ = receivedData.accelZ;           // Lưu gia tốc theo trục Z
     g_angularVelX = receivedData.angularVelX; // Lưu vận tốc góc theo trục X
     g_angularVelY = receivedData.angularVelY; // Lưu vận tốc góc theo trục Y
     g_angularVelZ = receivedData.angularVelZ; // Lưu vận tốc góc theo trục Z
-    g_ax_body=g_accelX;
-    g_ay_body=g_accelY;
-    g_omega_body=g_angularVelZ;
+    g_ax_body = g_accelX;
+    g_ay_body = g_accelY;
+    g_omega_body = g_angularVelZ;
   }
   else
   {
@@ -125,10 +111,10 @@ void initialize_ekf_parameters()
   Serial.println("Khoi tao cac tham so EKF...");
   // Ước tính trạng thái ban đầu (ví dụ: zeros hoặc từ các lần đọc cảm biến đầu tiên)
   // tinyekf_initialize sẽ đặt ekf.x về 0, nên chúng ta không cần đặt ở đây trước.
-  ekf.x[0] = 0.0; // x_pos
-  ekf.x[1] = 0.0; // y_pos
-  ekf.x[2] = 0.0; // vx
-  ekf.x[3] = 0.0; // vy
+  ekf.x[0] = 0.0;            // x_pos
+  ekf.x[1] = 0.0;            // y_pos
+  ekf.x[2] = 0.0;            // vx
+  ekf.x[3] = 0.0;            // vy
   ekf.x[4] = radians(g_yaw); // theta (yaw) tính bằng radian
   do
   {
@@ -139,11 +125,11 @@ void initialize_ekf_parameters()
     // P biểu thị sự không chắc chắn của các ước tính trạng thái.
     // Giá trị nhỏ hơn có nghĩa là tự tin hơn vào trạng thái ban đầu.
     _float_t pdiag[EKF_N] = {
-        0.01,  // P_x: phương sai của vị trí x (m^2)
-        0.01,  // P_y: phương sai của vị trí y (m^2)
+        0.01, // P_x: phương sai của vị trí x (m^2)
+        0.01, // P_y: phương sai của vị trí y (m^2)
         0.01, // P_vx: phương sai của vận tốc x ((m/s)^2)
         0.01, // P_vy: phương sai của vận tốc y ((m/s)^2)
-        0.01   // P_theta: phương sai của góc yaw (radians^2)
+        0.01  // P_theta: phương sai của góc yaw (radians^2)
     };
     // Hàm ekf_initialize từ tinyekf.h sẽ khởi tạo P và đặt ekf.x về 0.
     ekf_initialize(&ekf, pdiag);
@@ -166,7 +152,6 @@ void calculate_state_transition_fx(
   _float_t prev_vx = current_x[2];
   _float_t prev_vy = current_x[3];
   _float_t prev_theta = current_x[4];
-
 
   _float_t c_th = cos(prev_theta);
   _float_t s_th = sin(prev_theta);
@@ -381,85 +366,8 @@ void handleSerialInput()
     // printCurrentParameters();
   }
 }
-
-// Hàm setup và loop giữ nguyên
-void setup()
+bool ExternKalmanFilter()
 {
-  
-  delay(500);
-  Serial.begin(115200);
-  delay(500);  // Chờ Serial Monitor mở (cho một số board)
-
-  hmi.begin(BAUDRATE, RX_PIN, TX_PIN); // Khởi tạo giao tiếp Nextion
-  delay(500);                          // Chờ HMI khởi động
-  WiFi.mode(WIFI_STA);
-  delay(500); // Đợi WiFi ổn định
-  // Init ESP-NOW
-  if (esp_now_init() != ESP_OK)
-  {
-    Serial.println("Error initializing ESP-NOW");
-    return;
-  }
-
-  esp_now_register_recv_cb(esp_now_recv_cb_t(OnDataRecv));
-  // resetAndClear(); // Xóa màn hình và reset trạng thái ban đầu
-  Serial.println(F("--- May Nong Nghiep - Dieu Huong Zigzag (GPS) ---"));
-  Serial.println(F("Man hinh: 800x480"));
-  StartPoint = 0;
-  StartDir = 0;
-  currentState = WAITING_FOR_POINTS;
-  pinMode(33, OUTPUT);       // Thiết lập chân LED tích hợp làm đầu ra
-  hmi.sendCommand("page 1"); // Chuyển đến trang chính của HMI
-  // digitalWrite(33, HIGH);    // Bật LED tích hợp
-  // delay(200);             // Giữ LED sáng trong 1 giây
-  // digitalWrite(33, LOW);  // Tắt LED tích hợp
-  // 0.01,0.01,0.001,0.61
-  g_sigma_accel_process = 0.01;
-  g_sigma_omega_process = 0.001;
-  g_std_dev_gps_pos = 0.001;
-  g_std_dev_gps_vel = 0.61;
-  initialize_ekf_parameters();
-}
-unsigned long previousMillis = 0;
-
-// Khoảng thời gian bạn muốn (100 mili giây)
-const long interval = 100;
-void loop()
-{
-  unsigned long currentMillis = millis();
-  // char recei = hmi.receiveCommand(); // Gọi hàm nhận lệnh
-  // if (recei == 0x12) // Nếu có lệnh mới nhận được
-  // {
-
-  //   digitalWrite(33, HIGH); // Bật LED tích hợp
-  //   delay(500);             // Giữ LED sáng trong 1 giây
-  //   digitalWrite(33, LOW);  // Tắt LED tích hợp
-  // }
-
-  switch (currentState)
-  {
-  case WAITING_FOR_POINTS:
-    handlePointInput();
-    break;
-  case POINTS_ENTERED_READY_TO_DRAW:
-    drawFieldAndPath();
-    currentState = PATH_DISPLAYED;
-    has_valid_previous_tractor_pos = false;
-    Serial.println(F("Da ve xong. Go 'clear'/'change' de thay doi hoac nhap lai."));
-    break;
-  case PATH_DISPLAYED:
-    delay(100); // Đợi 100 mili giây trước khi tiếp tục
-    handlePointInput();                // Tiếp tục lắng nghe lệnh 'clear', 'change...'
-    readAndProcessGpsData();           // Đọc dữ liệu GPS (mô phỏng hoặc thực tế)
-
-    updateAndDrawTractorPositionHMI(); // Cập nhật vị trí máy cày trên HMI
-    break;
-  }
-  // Serial.printf("g_svnum: %d, g_yaw: %.2f, g_latitude: %.6f, g_longitude: %.6f, g_pdop: %.2f, g_hdop: %.2f, g_vdop: %.2f, g_altitude: %.2f, g_heading: %.2f, g_groundSpeed: %.2f\n",
-  //               g_svnum, g_yaw, g_latitude, g_longitude, g_pdop, g_hdop, g_vdop, g_altitude, g_heading, g_groundSpeed);
-  // Serial.printf("g_svnum: %d ,g_longitude: %.6f, g_latitude: %.6f, g_groundSpeed: %.2f, g_heading: %.2f, g_yaw: %.2f, g_roll: %.2f, g_pitch: %.2f, g_ax_body: %.2f, g_ay_body: %.2f, g_omega_body: %.2f\n",
-  //               g_svnum, g_longitude, g_latitude, g_groundSpeed, g_heading, g_yaw, g_roll, g_pitch, g_ax_body, g_ay_body, g_omega_body);
-  // Tính toán dt (delta time)
   unsigned long current_time_us = micros();
   dt = (current_time_us - last_time_us) / 1000000.0; // Chuyển từ microseconds sang seconds
   last_time_us = current_time_us;
@@ -522,27 +430,119 @@ void loop()
     get_measurement_noise_R(R_matrix);
 
     if (ekf_update(&ekf, z, hx, H, R_matrix))
-    { // Hàm từ tinyekf.h
-      // Serial.println("EKF Update Thanh cong"); // Bỏ comment để debug
+    {                       // Hàm từ tinyekf.h
+      ekf_x = ekf.x[0];     // Cập nhật biến toàn cục ekf_x
+      ekf_y = ekf.x[1];     // Cập nhật biến toàn cục ekf_y
+      ekf_vx = ekf.x[2];    // Cập nhật biến toàn cục ekf_vx
+      ekf_vy = ekf.x[3];    // Cập nhật biến toàn cục ekf_vy
+      ekf_theta = ekf.x[4]; // Cập nhật biến toàn cục ekf_theta
+      return true;
     }
     else
     {
       Serial.println("EKF Update That bai (co the do loi nghich dao ma tran)");
+      return false;
     }
     revce_flag = false; // Reset cờ sau khi xử lý
 
     // 4. In trạng thái đã tổng hợp (tùy chọn)
     // Serial.printf("Snum %d, Lat: %.6f, Lon: %.6f", g_svnum, g_latitude-lat_origin, g_longitude-lon_origin);
-    Serial.printf("  T: %.3f, X: %.2f, Y: %.2f, Vx: %.2f, Vy: %.2f, Th(deg): %.1f\n",
-    millis() / 1000.0, ekf.x[0], ekf.x[1], ekf.x[2], ekf.x[3], ekf.x[4] * 180.0 / M_PI);
+    // Serial.printf("  T: %.3f, X: %.2f, Y: %.2f, Vx: %.2f, Vy: %.2f, Th(deg): %.1f\n",
+    //               millis() / 1000.0, ekf.x[0], ekf.x[1], ekf.x[2], ekf.x[3], ekf.x[4] * 180.0 / M_PI);
 
     // delay(10); // Độ trễ vòng lặp, điều chỉnh nếu cần. IMU thường chạy nhanh, GPS chậm hơn.
     // Dự đoán nên chạy ở tốc độ của IMU, cập nhật ở tốc độ của GPS.
   }
+  else
+  {
+    Serial.println("Khong co du lieu GPS hop le de cap nhat EKF.");
+    return false; // Không có dữ liệu GPS hợp lệ để cập nhật EKF
+  }
+}
+// Hàm setup và loop giữ nguyên
+void setup()
+{
+
+  delay(500);
+  Serial.begin(115200);
+  delay(500); // Chờ Serial Monitor mở (cho một số board)
+
+  hmi.begin(BAUDRATE, RX_PIN, TX_PIN); // Khởi tạo giao tiếp Nextion
+  delay(500);                          // Chờ HMI khởi động
+  WiFi.mode(WIFI_STA);
+  delay(500); // Đợi WiFi ổn định
+  // Init ESP-NOW
+  if (esp_now_init() != ESP_OK)
+  {
+    Serial.println("Error initializing ESP-NOW");
+    return;
+  }
+
+  esp_now_register_recv_cb(esp_now_recv_cb_t(OnDataRecv));
+  // resetAndClear(); // Xóa màn hình và reset trạng thái ban đầu
+  Serial.println(F("--- May Nong Nghiep - Dieu Huong Zigzag (GPS) ---"));
+  Serial.println(F("Man hinh: 800x480"));
+  StartPoint = 0;
+  StartDir = 0;
+  currentState = WAITING_FOR_POINTS;
+  pinMode(33, OUTPUT);       // Thiết lập chân LED tích hợp làm đầu ra
+  hmi.sendCommand("page 1"); // Chuyển đến trang chính của HMI
+  // digitalWrite(33, HIGH);    // Bật LED tích hợp
+  // delay(200);             // Giữ LED sáng trong 1 giây
+  // digitalWrite(33, LOW);  // Tắt LED tích hợp
+  // 0.01,0.01,0.001,0.61
+  g_sigma_accel_process = 0.01;
+  g_sigma_omega_process = 0.001;
+  g_std_dev_gps_pos = 0.001;
+  g_std_dev_gps_vel = 0.61;
+}
+unsigned long previousMillis = 0;
+
+// Khoảng thời gian bạn muốn (100 mili giây)
+const long interval = 100;
+void loop()
+{
+  unsigned long currentMillis = millis();
+  // char recei = hmi.receiveCommand(); // Gọi hàm nhận lệnh
+  // if (recei == 0x12) // Nếu có lệnh mới nhận được
+  // {
+
+  //   digitalWrite(33, HIGH); // Bật LED tích hợp
+  //   delay(500);             // Giữ LED sáng trong 1 giây
+  //   digitalWrite(33, LOW);  // Tắt LED tích hợp
+  // }
+
+  switch (currentState)
+  {
+  case WAITING_FOR_POINTS:
+    handlePointInput();
+    break;
+  case POINTS_ENTERED_READY_TO_DRAW:
+    initialize_ekf_parameters();
+    drawFieldAndPath();
+    currentState = PATH_DISPLAYED;
+    has_valid_previous_tractor_pos = false;
+    Serial.println(F("Da ve xong. Go 'clear'/'change' de thay doi hoac nhap lai."));
+    break;
+  case PATH_DISPLAYED:
+    // delay(100); // Đợi 100 mili giây trước khi tiếp tục
+    // handlePointInput();                // Tiếp tục lắng nghe lệnh 'clear', 'change...'
+    // readAndProcessGpsData();           // Đọc dữ liệu GPS (mô phỏng hoặc thực tế)
+    ExternKalmanFilter(); // Chạy bộ lọc Kalman mở rộng (EKF)
+    // updateAndDrawTractorPositionHMI(); // Cập nhật vị trí máy cày trên HMI
+    break;
+  }
+  // Serial.printf("g_svnum: %d, g_yaw: %.2f, g_latitude: %.6f, g_longitude: %.6f, g_pdop: %.2f, g_hdop: %.2f, g_vdop: %.2f, g_altitude: %.2f, g_heading: %.2f, g_groundSpeed: %.2f\n",
+  //               g_svnum, g_yaw, g_latitude, g_longitude, g_pdop, g_hdop, g_vdop, g_altitude, g_heading, g_groundSpeed);
+  // Serial.printf("g_svnum: %d ,g_longitude: %.6f, g_latitude: %.6f, g_groundSpeed: %.2f, g_heading: %.2f, g_yaw: %.2f, g_roll: %.2f, g_pitch: %.2f, g_ax_body: %.2f, g_ay_body: %.2f, g_omega_body: %.2f\n",
+  //               g_svnum, g_longitude, g_latitude, g_groundSpeed, g_heading, g_yaw, g_roll, g_pitch, g_ax_body, g_ay_body, g_omega_body);
+  // Tính toán dt (delta time)
+
   if (currentMillis - previousMillis >= interval)
   {
     // Lưu lại thời điểm cuối cùng khối mã này được thực thi
     previousMillis = currentMillis;
+    updateAndDrawTractorPositionHMI(); // Cập nhật vị trí máy cày trên HMI
     String command = "x0.val=" + String(g_svnum);
     hmi.sendCommand(command); // Gửi lệnh cập nhật số lượng vệ tinh lên HMI
     command = "t11.txt=\"" + String(g_yaw, 2) + "\"";
@@ -551,9 +551,9 @@ void loop()
     hmi.sendCommand(command); // Gửi lệnh cập nhật góc phương vị lên HMI
     command = "t9.txt=\"" + String(g_roll, 2) + "\"";
     hmi.sendCommand(command); // Gửi lệnh cập nhật góc phương vị lên HMI
-    command = "t1.txt=\"" + String(g_latitude,6) + "\"";
+    command = "t1.txt=\"" + String(g_latitude, 6) + "\"";
     hmi.sendCommand(command); // Gửi lệnh cập nhật vĩ độ lên HMI
-    command = "t2.txt=\"" + String(g_longitude,6) + "\"";
+    command = "t2.txt=\"" + String(g_longitude, 6) + "\"";
     hmi.sendCommand(command); // Gửi lệnh cập nhật kinh độ lên HMI
     command = "t3.txt=\"" + String(g_pdop, 4) + "\"";
     hmi.sendCommand(command); // Gửi lệnh cập nhật kinh độ lên HMI
@@ -564,6 +564,10 @@ void loop()
     command = "t0.txt=\"" + String(g_heading, 2) + "\"";
     hmi.sendCommand(command); // Gửi lệnh cập nhật hướng GPS lên HMI
     command = "t15.txt=\"" + String(g_groundSpeed, 2) + "\"";
+    hmi.sendCommand(command); // Gửi lệnh cập nhật hướng GPS lên HMI
+    command = "t16.txt=\"" + String(ekf.x[0], 2) + "\"";
+    hmi.sendCommand(command); // Gửi lệnh cập nhật hướng GPS lên HMI
+    command = "t19.txt=\"" + String(ekf.x[1], 2) + "\"";
     hmi.sendCommand(command); // Gửi lệnh cập nhật hướng GPS lên HMI
   }
 

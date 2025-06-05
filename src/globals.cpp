@@ -95,3 +95,18 @@ double g_sigma_accel_process = 0.0001; // m/s^2, giá trị ban đầu từ main
 double g_sigma_omega_process = 0.0001; // rad/s, giá trị ban đầu từ main.cpp
 double g_std_dev_gps_pos = 0.001;    // m, giá trị ban đầu từ main.cpp
 double g_std_dev_gps_vel = 2.0;      // m/s, giá trị ban đầu từ main.cpp
+
+// Biến toàn cục cho bộ lọc Kalman mở rộng (EKF)
+_float_t ekf_x = 0.0; // Biến toàn cục cho trạng thái EKF
+_float_t ekf_y = 0.0; // Biến toàn cục cho trạng thái EKF
+_float_t ekf_vx = 0.0; // Biến toàn cục cho trạng thái EKF
+_float_t ekf_vy = 0.0; // Biến toàn cục cho trạng thái
+_float_t ekf_theta = 0.0; // Biến toàn cục cho trạng thái EKF (yaw)
+
+bool origin_set = false; // Cờ cho biết đã đặt tọa độ gốc từ GPS hay chưa
+
+_float_t lat_origin = 0.0; // Sẽ được đặt bởi điểm GPS đầu tiên
+_float_t lon_origin = 0.0; // Sẽ được đặt bởi điểm GPS đầu tiên
+
+const _float_t METERS_PER_DEG_LAT = 111132.954; // Mét xấp xỉ trên mỗi độ vĩ độ
+_float_t meters_per_deg_lon = 0.0;              // Sẽ được tính sau khi lat_origin được đặt

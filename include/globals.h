@@ -5,6 +5,13 @@
 #include "Point.h"
 #include "function.h"
 #include "HMI_Display.h"
+#define _float_t double // Khuyến nghị dùng double để ổn định số học tốt hơn
+
+#define EKF_N 5 // Số lượng trạng thái: [x, y, vx, vy, theta]
+#define EKF_M 4 // Số lượng phép đo: [gps_x, gps_y, gps_vx, gps_vy]
+// Bao gồm thư viện EKF
+#include "tinyekf.h"
+extern ekf_t ekf; // Biến toàn cục cho bộ lọc Kalman mở rộng
 extern const unsigned long BAUDRATE;
 extern const int8_t RX_PIN;  // Chân RX của Nextion
 extern const int8_t TX_PIN;  // Chân TX của Nextion
@@ -100,4 +107,17 @@ extern double g_sigma_omega_process;
 extern double g_std_dev_gps_pos;
 extern double g_std_dev_gps_vel;
 
+extern _float_t ekf_x;
+extern _float_t ekf_y;
+extern _float_t ekf_vx;
+extern _float_t ekf_vy;
+extern _float_t ekf_theta; // Góc phương vị (Yaw) tính bằng radian
+
+extern bool origin_set;
+
+extern _float_t lon_origin; // Kinh độ gốc (decimal degrees)
+extern _float_t lat_origin; // Vĩ độ gốc (decimal degrees)
+
+extern const _float_t METERS_PER_DEG_LAT; // Mét xấp xỉ trên mỗi độ vĩ độ
+extern _float_t meters_per_deg_lon;               // Sẽ được tính sau khi lat_origin được đặt
 #endif // GLOBALS_H
