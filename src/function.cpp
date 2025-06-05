@@ -905,23 +905,9 @@ void updateAndDrawTractorPositionHMI()
 
   current_tractor_display_pic_id = pic_id_to_draw_now + 15;
 
-  // Bước 4: Kích thước ảnh MỚI là cố định (43x43)
-  // Không cần gọi getTractorPicDimensions nữa.
-
   // Bước 5: Tính tọa độ góc trên-trái (top-left) để vẽ ảnh MỚI
   int new_pic_draw_x = static_cast<int>(std::round(new_tractor_center_screen.x - (double)TRACTOR_PIC_FIXED_WIDTH / 2.0));
   int new_pic_draw_y = static_cast<int>(std::round(new_tractor_center_screen.y - (double)TRACTOR_PIC_FIXED_HEIGHT / 2.0));
-
-  // Bước 6: Xóa ảnh CŨ (nếu có)
-  if (has_valid_previous_tractor_pos)
-  {
-    // Kích thước ảnh TRƯỚC ĐÓ cũng là cố định (43x43)
-    int prev_pic_draw_x = static_cast<int>(std::round(previous_tractor_screen_actual.x - (double)TRACTOR_PIC_FIXED_WIDTH / 2.0));
-    int prev_pic_draw_y = static_cast<int>(std::round(previous_tractor_screen_actual.y - (double)TRACTOR_PIC_FIXED_HEIGHT / 2.0));
-
-    // hmi.fillRect(prev_pic_draw_x, prev_pic_draw_y, TRACTOR_PIC_FIXED_WIDTH, TRACTOR_PIC_FIXED_HEIGHT, SCREEN_BACKGROUND_COLOR);
-    //hmi.visPic(previous_tractor_display_pic_id, 0); // Ẩn ảnh cũ
-  }
 
   // Bước 7: Vẽ ảnh MỚI của máy cày lên màn hình
   for (size_t i = 0; i < field_vertices_screen.size(); ++i)
@@ -940,95 +926,12 @@ void updateAndDrawTractorPositionHMI()
   hmi.drawPointMarker(g_final_path_points.back(), RED);
 
   hmi.changePic1(new_pic_draw_x, new_pic_draw_y, current_tractor_display_pic_id);
-  // hmi.changePic(25,new_pic_draw_x, new_pic_draw_y, current_tractor_display_pic_id);
 
   // Bước 8: Cập nhật thông tin cho lần gọi hàm tiếp theo
   previous_tractor_screen_actual = new_tractor_center_screen;
   previous_tractor_display_pic_id = current_tractor_display_pic_id;
   has_valid_previous_tractor_pos = true;
 }
-// void updateAndDrawTractorPositionHMI()
-// {
-//   if (!new_tractor_gps_data_received)
-//   {
-//     return;
-//   }
-//   new_tractor_gps_data_received = false;
-
-//   if (scale_factor_combined == 0 && field_vertices_gps.size() < 3)
-//   {
-//     return;
-//   }
-
-//   // 1. Xác định vị trí TÂM mới của máy cày trên màn hình
-//   Point new_tractor_center_screen = transformGpsToScreen(current_tractor_gps_actual);
-
-//   // 2. Xác định pic_id MỚI dựa trên hướng di chuyển
-//   int pic_id_to_draw_now = TRACTOR_PIC_ID_DEFAULT; // Mặc định ban đầu
-
-//   if (has_valid_previous_tractor_pos)
-//   {
-//     double deltaX = new_tractor_center_screen.x - previous_tractor_screen_actual.x; // previous_tractor_screen_actual là TÂM của ảnh trước
-//     double deltaY = new_tractor_center_screen.y - previous_tractor_screen_actual.y;
-//     double move_threshold = 1.0;
-
-//     if (std::fabs(deltaX) > std::fabs(deltaY) && std::fabs(deltaX) > move_threshold)
-//     {
-//       pic_id_to_draw_now = (deltaX > 0) ? TRACTOR_PIC_ID_RIGHT : TRACTOR_PIC_ID_LEFT;
-//     }
-//     else if (std::fabs(deltaY) > std::fabs(deltaX) && std::fabs(deltaY) > move_threshold)
-//     {
-//       pic_id_to_draw_now = (deltaY > 0) ? TRACTOR_PIC_ID_DOWN : TRACTOR_PIC_ID_UP;
-//     }
-//     else
-//     {
-//       // Không di chuyển đáng kể, giữ nguyên ID ảnh của khung hình trước
-//       pic_id_to_draw_now = current_tractor_display_pic_id; // current_tractor_display_pic_id lưu ID của ảnh đang hiển thị (từ frame trước)
-//     }
-//   }
-//   else
-//   {
-//     // Lần đầu vẽ hoặc sau khi reset
-//     pic_id_to_draw_now = TRACTOR_PIC_ID_DEFAULT;
-//   }
-//   // Cập nhật ID ảnh sẽ được vẽ trong khung hình này
-//   current_tractor_display_pic_id = pic_id_to_draw_now;
-
-//   // 3. Lấy kích thước cho ảnh MỚI sắp vẽ
-//   int current_pic_w, current_pic_h;
-//   getTractorPicDimensions(current_tractor_display_pic_id, current_pic_w, current_pic_h);
-
-//   // 4. Tính tọa độ góc trên-trái (top-left) để vẽ ảnh MỚI (căn giữa theo new_tractor_center_screen)
-//   int new_pic_draw_x = static_cast<int>(std::round(new_tractor_center_screen.x - (double)current_pic_w / 2.0));
-//   int new_pic_draw_y = static_cast<int>(std::round(new_tractor_center_screen.y - (double)current_pic_h / 2.0));
-
-//   // 5. Xóa ảnh CŨ nếu có
-//   if (has_valid_previous_tractor_pos)
-//   {
-//     // Lấy kích thước của ảnh TRƯỚC ĐÓ đã vẽ (dựa vào previous_tractor_display_pic_id)
-//     int prev_pic_w, prev_pic_h;
-//     getTractorPicDimensions(previous_tractor_display_pic_id, prev_pic_w, prev_pic_h);
-
-//     // Tính tọa độ top-left của ảnh TRƯỚC ĐÓ (dựa vào previous_tractor_screen_actual là TÂM của ảnh đó)
-//     int prev_pic_draw_x = static_cast<int>(std::round(previous_tractor_screen_actual.x - (double)prev_pic_w / 2.0));
-//     int prev_pic_draw_y = static_cast<int>(std::round(previous_tractor_screen_actual.y - (double)prev_pic_h / 2.0));
-
-//     // Vẽ hình chữ nhật MÀU NỀN đè lên vị trí ảnh CŨ
-    
-//     hmi.fillRect(prev_pic_draw_x, prev_pic_draw_y, prev_pic_w, prev_pic_h, SCREEN_BACKGROUND_COLOR);
-//     delay(100); // Cân nhắc nếu cần thiết
-//   }
-
-//   // 6. Vẽ ảnh MỚI
-//   hmi.drawPic(new_pic_draw_x, new_pic_draw_y, current_tractor_display_pic_id);
-
-//   // Serial.print(...); // Log debug nếu cần
-
-//   // 7. Cập nhật thông tin cho khung hình tiếp theo
-//   previous_tractor_screen_actual = new_tractor_center_screen;       // Lưu lại TÂM của ảnh vừa vẽ
-//   previous_tractor_display_pic_id = current_tractor_display_pic_id; // Lưu lại ID của ảnh vừa vẽ
-//   has_valid_previous_tractor_pos = true;
-// }
 
 // Hàm này cần được gọi trong loop()
 // Bạn cần tự hoàn thiện phần đọc và phân tích NMEA từ module GPS thực tế
@@ -1056,8 +959,8 @@ void readAndProcessGpsData()
   { // Cập nhật mô phỏng mỗi 3 giây
     lastGpsSimTime = millis();
     // Di chuyển ngẫu nhiên một chút từ điểm đầu tiên của thửa ruộng để mô phỏng
-    current_tractor_gps_actual.latitude = field_vertices_gps[0].latitude + (double)(rand() % 100 - 50) / 200000.0;   // Thay đổi nhỏ
-    current_tractor_gps_actual.longitude = field_vertices_gps[0].longitude + (double)(rand() % 100 - 50) / 200000.0; // Thay đổi nhỏ
+    current_tractor_gps_actual.latitude = field_vertices_gps[0].latitude + (double)(rand() % 60 - 50) / 200000.0;   // Thay đổi nhỏ
+    current_tractor_gps_actual.longitude = field_vertices_gps[0].longitude + (double)(rand() % 60 - 50) / 200000.0; // Thay đổi nhỏ
     // current_tractor_gps_actual.latitude = g_latitude;                                                        // Thay đổi nhỏ
     // current_tractor_gps_actual.longitude = g_longitude;                                                        // Thay đổi nhỏ
     new_tractor_gps_data_received = true;

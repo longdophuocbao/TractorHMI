@@ -81,7 +81,7 @@ void HMI_Display::sendCommand(String cmd)
         _serial->write(0xff);
         _serial->flush();
     }
-    delay(5); // Delay nhỏ giữa các lệnh
+    delay(1); // Delay nhỏ giữa các lệnh
 }
 
 char HMI_Display::receiveCommand()

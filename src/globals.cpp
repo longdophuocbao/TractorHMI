@@ -2,8 +2,8 @@
 #include "HMI_Display.h"
 
 const unsigned long BAUDRATE = 115200; // Chân RX của Nextion
-const int8_t RX_PIN = 18;              // Chân RX của Nextion
-const int8_t TX_PIN = 19;              // Chân TX của Nextion
+const int8_t RX_PIN = 16;              // Chân RX của Nextion
+const int8_t TX_PIN = 17;              // Chân TX của Nextion
 
 // Định nghĩa đối tượng HMI_Display toàn cục
 HardwareSerial NextionSerial = Serial2; // Sử dụng Serial2 cho Nextion
@@ -83,4 +83,15 @@ float g_vdop = 0.0;      // Độ chính xác dọc (Vertical Dilution of Precis
 float g_altitude= 0.0;          // Độ cao GPS tính bằng mét
 float g_heading = 0.0;          // Hướng GPS tính bằng độ
 float g_groundSpeed = 0.0;      // Tốc độ di chuyển trên mặt đất GPS tính bằng km/h
+float g_accelX = 0.0;       // Gia tốc theo trục X (m/s^2)
+float g_accelY = 0.0;       // Gia tốc theo trục Y (m/s^2)
+float g_accelZ = 0.0;       // Gia tốc theo trục Z (m/s^2)
+float g_angularVelX = 0.0;  // Vận tốc góc theo trục X (°/s)
+float g_angularVelY = 0.0;  // Vận tốc góc theo trục Y (°/s)
+float g_angularVelZ = 0.0;  // Vận tốc góc theo trục Z (°/s)
 
+// Giá trị mặc định cho các tham số EKF
+double g_sigma_accel_process = 0.0001; // m/s^2, giá trị ban đầu từ main.cpp
+double g_sigma_omega_process = 0.0001; // rad/s, giá trị ban đầu từ main.cpp
+double g_std_dev_gps_pos = 0.001;    // m, giá trị ban đầu từ main.cpp
+double g_std_dev_gps_vel = 2.0;      // m/s, giá trị ban đầu từ main.cpp

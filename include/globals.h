@@ -84,7 +84,20 @@ extern float g_vdop;      // Độ chính xác dọc (Vertical Dilution of Preci
 extern float g_altitude;    // Độ cao GPS tính bằng mét
 extern float g_heading;            // Hướng GPS tính bằng độ
 extern float g_groundSpeed;        // Tốc độ di chuyển trên mặt đất GPS tính bằng km/h
+extern float g_accelX;           // Gia tốc theo trục X (m/s^2)
+extern float g_accelY;           // Gia tốc theo trục Y (m/s^2) 
+extern float g_accelZ;           // Gia tốc theo trục Z (m/s^2)
+extern float g_angularVelX;     // Vận tốc góc theo trục X (°/s)
+extern float g_angularVelY;     // Vận tốc góc theo trục Y (°/s)
+extern float g_angularVelZ;     // Vận tốc góc theo trục Z (°/s)
+extern int16_t g_fieldX;        // Giá trị từ trường theo trục X (đơn vị: LSB)
+extern int16_t g_fieldY;        // Giá trị từ trường theo trục Y (đơn vị: LSB)
+extern int16_t g_fieldZ;        // Giá trị từ trường theo trục Z (đơn vị: LSB)
 
-
+// Biến toàn cục cho tham số EKF có thể thay đổi qua Serial
+extern double g_sigma_accel_process;
+extern double g_sigma_omega_process;
+extern double g_std_dev_gps_pos;
+extern double g_std_dev_gps_vel;
 
 #endif // GLOBALS_H
