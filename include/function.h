@@ -37,7 +37,13 @@ void drawFieldAndPath();
 bool segmentIntersection(const Point &p1, const Point &p2, const Point &p3, const Point &p4, Point &intersection_point);
 std::vector<Segment> clipLineWithPolygon(const Point &line_origin, const Point &line_dir_normalized, const std::vector<Point> &polygon_vertices, double current_working_width);
 bool isInside(const Point &p, const std::vector<Point> &polygon);
-void generatePath(const std::vector<Point> &polygon_vertices, double workingWidth, int startVertexIndex, int startDirGlobal, HMI_Display &hmi_display);
+int findClosestEdgeStartIndex(const std::vector<Point> &polygon, const Point &p, Point &closest_point_on_polygon);
+void generatePath(const std::vector<Point> &polygon_vertices,
+                  double workingWidth,
+                  const Point &current_tractor_screen_pos, // Vị trí máy cày hiện tại
+                  int initial_path_direction_preference,   // Tương tự StartDir cũ
+                  HMI_Display &hmi_display);
+// void generatePath(const std::vector<Point> &polygon_vertices, double workingWidth, int startVertexIndex, int startDirGlobal, HMI_Display &hmi_display);
 void updateAndDrawTractorPositionHMI();
 void readAndProcessGpsData();
 void getTractorPicDimensions(int pic_id, int &width, int &height);

@@ -20,7 +20,7 @@ double average_latitude_rad = 0.0;                                              
 
 ProgramState currentState = WAITING_FOR_POINTS; // Trạng thái chương trình
 int StartPoint = 0;                             // Chỉ số đỉnh bắt đầu gần nhất
-int StartDir = 0;                               // Chỉ số đỉnh bắt đầu của cạnh định hướng
+int StartDir = 1;                               // Chỉ số đỉnh bắt đầu của cạnh định hướng
 
 // Định nghĩa màu Nextion
 const int WHITE = 65535;
@@ -29,12 +29,12 @@ const int GREEN = 2016;
 const int BLUE = 31;
 const int RED = 63488;
 const int YELLOW = 65504;
-const int SCREEN_BACKGROUND_COLOR = 17424; // 63289
+const int SCREEN_BACKGROUND_COLOR = 63289;
 
 // KÍCH THƯỚC MÀN HÌNH NEXTION VÀ PADDING
-const int SCREEN_WIDTH_PX = 500;
+const int SCREEN_WIDTH_PX = 480;
 const int SCREEN_HEIGHT_PX = 480;
-const int SCREEN_PADDING_PX = 10;
+const int SCREEN_PADDING_PX = 15;
 
 // Hằng số cho chuyển đổi GPS
 const float METERS_PER_DEGREE_LATITUDE = 111132.954f; // Hằng số gần đúng
@@ -71,36 +71,36 @@ Point previous_tractor_screen_actual;        // Lưu vị trí màn hình trư�
 bool has_valid_previous_tractor_pos = false; // Cờ cho biết có vị trí cũ hợp lệ để xóa không
 bool new_tractor_gps_data_received = false;  // Cờ báo có dữ liệu GPS mới
 
-uint16_t g_svnum = 0;    // Số lượng vệ tinh GPS
-float g_yaw = 0.0;       // Góc phương vị (Yaw) của máy cày (độ)
-float g_roll = 0.0;      // Góc lăn (Roll) của máy cày (độ)
-float g_pitch = 0.0;     // Góc nghiêng (Pitch) của máy cày (độ)
-float g_longitude = 0.0; // Kinh độ (decimal degrees)
-float g_latitude = 0.0;  // Vĩ độ (decimal degrees)
-float g_pdop = 0.0;      // Độ chính xác vị trí (Position Dilution of Precision)
-float g_hdop = 0.0;      // Độ chính xác ngang (Horizontal Dilution of Precision)
-float g_vdop = 0.0;      // Độ chính xác dọc (Vertical Dilution of Precision)
-float g_altitude= 0.0;          // Độ cao GPS tính bằng mét
-float g_heading = 0.0;          // Hướng GPS tính bằng độ
-float g_groundSpeed = 0.0;      // Tốc độ di chuyển trên mặt đất GPS tính bằng km/h
-float g_accelX = 0.0;       // Gia tốc theo trục X (m/s^2)
-float g_accelY = 0.0;       // Gia tốc theo trục Y (m/s^2)
-float g_accelZ = 0.0;       // Gia tốc theo trục Z (m/s^2)
-float g_angularVelX = 0.0;  // Vận tốc góc theo trục X (°/s)
-float g_angularVelY = 0.0;  // Vận tốc góc theo trục Y (°/s)
-float g_angularVelZ = 0.0;  // Vận tốc góc theo trục Z (°/s)
+uint16_t g_svnum = 0;      // Số lượng vệ tinh GPS
+float g_yaw = 0.0;         // Góc phương vị (Yaw) của máy cày (độ)
+float g_roll = 0.0;        // Góc lăn (Roll) của máy cày (độ)
+float g_pitch = 0.0;       // Góc nghiêng (Pitch) của máy cày (độ)
+float g_longitude = 0.0;   // Kinh độ (decimal degrees)
+float g_latitude = 0.0;    // Vĩ độ (decimal degrees)
+float g_pdop = 0.0;        // Độ chính xác vị trí (Position Dilution of Precision)
+float g_hdop = 0.0;        // Độ chính xác ngang (Horizontal Dilution of Precision)
+float g_vdop = 0.0;        // Độ chính xác dọc (Vertical Dilution of Precision)
+float g_altitude = 0.0;    // Độ cao GPS tính bằng mét
+float g_heading = 0.0;     // Hướng GPS tính bằng độ
+float g_groundSpeed = 0.0; // Tốc độ di chuyển trên mặt đất GPS tính bằng km/h
+float g_accelX = 0.0;      // Gia tốc theo trục X (m/s^2)
+float g_accelY = 0.0;      // Gia tốc theo trục Y (m/s^2)
+float g_accelZ = 0.0;      // Gia tốc theo trục Z (m/s^2)
+float g_angularVelX = 0.0; // Vận tốc góc theo trục X (°/s)
+float g_angularVelY = 0.0; // Vận tốc góc theo trục Y (°/s)
+float g_angularVelZ = 0.0; // Vận tốc góc theo trục Z (°/s)
 
 // Giá trị mặc định cho các tham số EKF
 double g_sigma_accel_process = 0.0001; // m/s^2, giá trị ban đầu từ main.cpp
 double g_sigma_omega_process = 0.0001; // rad/s, giá trị ban đầu từ main.cpp
-double g_std_dev_gps_pos = 0.001;    // m, giá trị ban đầu từ main.cpp
-double g_std_dev_gps_vel = 2.0;      // m/s, giá trị ban đầu từ main.cpp
+double g_std_dev_gps_pos = 0.001;      // m, giá trị ban đầu từ main.cpp
+double g_std_dev_gps_vel = 2.0;        // m/s, giá trị ban đầu từ main.cpp
 
 // Biến toàn cục cho bộ lọc Kalman mở rộng (EKF)
-_float_t ekf_x = 0.0; // Biến toàn cục cho trạng thái EKF
-_float_t ekf_y = 0.0; // Biến toàn cục cho trạng thái EKF
-_float_t ekf_vx = 0.0; // Biến toàn cục cho trạng thái EKF
-_float_t ekf_vy = 0.0; // Biến toàn cục cho trạng thái
+_float_t ekf_x = 0.0;     // Biến toàn cục cho trạng thái EKF
+_float_t ekf_y = 0.0;     // Biến toàn cục cho trạng thái EKF
+_float_t ekf_vx = 0.0;    // Biến toàn cục cho trạng thái EKF
+_float_t ekf_vy = 0.0;    // Biến toàn cục cho trạng thái
 _float_t ekf_theta = 0.0; // Biến toàn cục cho trạng thái EKF (yaw)
 
 bool origin_set = false; // Cờ cho biết đã đặt tọa độ gốc từ GPS hay chưa
@@ -110,3 +110,7 @@ _float_t lon_origin = 0.0; // Sẽ được đặt bởi điểm GPS đầu tiê
 
 const _float_t METERS_PER_DEG_LAT = 111132.954; // Mét xấp xỉ trên mỗi độ vĩ độ
 _float_t meters_per_deg_lon = 0.0;              // Sẽ được tính sau khi lat_origin được đặt
+_float_t initYAW = 0;
+
+// Ngưỡng Mahalanobis cho 4 bậc tự do (EKF_M), mức ý nghĩa 95% (tra bảng Chi-squared)
+const _float_t MAHALANOBIS_CHI2_THRESHOLD_4DOF_95PCT = 9.488;

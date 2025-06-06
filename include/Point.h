@@ -16,6 +16,10 @@ struct Point
   double dot(const Point &other) const { return x * other.x + y * other.y; }
   double length() const { return std::sqrt(x * x + y * y); }
 
+  double lengthSq() const
+  {
+    return x * x + y * y;
+  }
   Point normalized() const
   {
     double l = length();

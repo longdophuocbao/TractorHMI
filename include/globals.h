@@ -120,4 +120,9 @@ extern _float_t lat_origin; // Vĩ độ gốc (decimal degrees)
 
 extern const _float_t METERS_PER_DEG_LAT; // Mét xấp xỉ trên mỗi độ vĩ độ
 extern _float_t meters_per_deg_lon;               // Sẽ được tính sau khi lat_origin được đặt
+extern _float_t initYAW;
+
+extern const _float_t MAHALANOBIS_CHI2_THRESHOLD_4DOF_95PCT;
+
+
 #endif // GLOBALS_H

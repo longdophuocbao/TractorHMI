@@ -14,7 +14,7 @@ void resetAndClear()
 {
   field_vertices_gps.clear();
   field_vertices_screen.clear();
-  //hmi.clearScreen(SCREEN_BACKGROUND_COLOR); // Xóa màn hình HMI với màu trắng
+  // hmi.clearScreen(SCREEN_BACKGROUND_COLOR); // Xóa màn hình HMI với màu trắng
   currentState = WAITING_FOR_POINTS;
   StartPoint = 0; // Reset các giá trị về mặc định
   StartDir = 0;
@@ -37,10 +37,11 @@ void handlePointInput()
     if (input.equalsIgnoreCase("done"))
     {
       // Tùy chọn: Thêm điểm cố định để test nhanh
-      field_vertices_gps.push_back({120.26566389135687, 22.626949475307885});
-      field_vertices_gps.push_back({120.26609465404412, 22.627049646169556});
-      field_vertices_gps.push_back({120.26614325919708, 22.626493423503955});
-      field_vertices_gps.push_back({120.26563962832518, 22.62629604619295});
+      // 22.626474419257956, 120.26601481799105
+      field_vertices_gps.push_back({120.26602989537999, 22.626897446089398});
+      field_vertices_gps.push_back({120.26567270080515, 22.62691523274391});
+      field_vertices_gps.push_back({120.2656915121263, 22.626482921596722});
+      field_vertices_gps.push_back({120.26601481799105, 22.626474419257956});
       // field_vertices_gps.push_back({120.26567222968173, 22.62686995853145});
       // field_vertices_gps.push_back({120.26572065449193, 22.626871898407174});
       // field_vertices_gps.push_back({120.26572388062435, 22.626916585260386});
@@ -61,6 +62,8 @@ void handlePointInput()
       {
         Serial.println(F("Loi: Can it nhat 3 diem GPS. Vui long nhap them."));
       }
+      // g_longitude = 120.2657313397648; // Vĩ độ của điểm đầu tiên
+      // g_latitude = 22.62682181281419;  //  Kinh độ của điểm đầu tiên
     }
     else if (input.equalsIgnoreCase("clear"))
     {
@@ -133,9 +136,9 @@ void handlePointInput()
     }
   }
   char recei = hmi.receiveCommand(); // Gọi hàm nhận lệnh
-  if (recei == 0x12) // Nếu có lệnh mới nhận được
+  if (recei == 0x12)                 // Nếu có lệnh mới nhận được
   {
-    Serial.printf("snum %d, longitude: %f, Latitude: %f\n",g_svnum, g_longitude, g_latitude);
+    Serial.printf("snum %d, longitude: %f, Latitude: %f\n", g_svnum, g_longitude, g_latitude);
     field_vertices_gps.push_back({g_longitude, g_latitude});
     digitalWrite(33, HIGH); // Bật LED tích hợp
     delay(200);             // Giữ LED sáng trong 1 giây
@@ -156,15 +159,15 @@ void handlePointInput()
     digitalWrite(33, HIGH); // Bật LED tích hợp
     delay(100);             // Giữ LED sáng trong 1 giây
     digitalWrite(33, LOW);
-    delay(100); // Giữ LED sáng trong 1 giây
+    delay(100);             // Giữ LED sáng trong 1 giây
     digitalWrite(33, HIGH); // Bật LED tích hợp
     delay(100);
     digitalWrite(33, LOW);
     delay(100);             // Giữ LED sáng trong 1 giây
     digitalWrite(33, HIGH); // Bật LED tích hợp
     delay(100);
-    digitalWrite(33, LOW);  // Tắt LED tích hợp
-    StartPoint = field_vertices_gps.size()-1;
+    digitalWrite(33, LOW); // Tắt LED tích hợp
+    StartPoint = field_vertices_gps.size() - 1;
   }
 }
 
@@ -264,6 +267,7 @@ void calculateScaleAndTransformPoints()
 
 Point transformGpsToScreen(GpsPoint gp)
 {
+
   // Chuyển đổi kinh độ (X) sang pixel X
   double sx = offset_x_for_screen + (gp.longitude - min_lon_gps) * scale_factor_combined;
   // Chuyển đổi vĩ độ (Y) sang pixel Y, lật ngược trục Y
@@ -281,6 +285,7 @@ void drawFieldAndPath()
     return;
   }
 
+   //
   // hmi.clearScreen(SCREEN_BACKGROUND_COLOR); // Xóa màn hình trước khi vẽ mới
 
   // Vẽ các điểm đỉnh đã scale
@@ -293,6 +298,7 @@ void drawFieldAndPath()
     Serial.print(F(", "));
     Serial.print(screen_pt.y, 1);
     Serial.println(F(")"));
+    delay(500);
   }
 
   // Vẽ các cạnh của thửa ruộng đã scale
@@ -305,20 +311,90 @@ void drawFieldAndPath()
     }
   }
 
-  // Tạo và vẽ đường đi zigzag
+  // // Tạo và vẽ đường đi zigzag
+  // if (field_vertices_screen.size() >= 3 && working_width_px > 0)
+  // {
+
+  //   Serial.print(F("Dang tao duong di voi working_width_px = "));
+  //   Serial.print(working_width_px);
+  //   Serial.print(F(", startVertexIndex = "));
+  //   Serial.print(StartPoint);
+  //   Serial.print(F(", StartDir = "));
+  //   Serial.println(StartDir);
+
+  //   // Gọi hàm generate Path với các tham số đã tính toán
+  //   // Chuyển working_width_px sang double khi gọi
+  //   generatePath(field_vertices_screen, static_cast<double>(working_width_px), StartPoint, StartDir, hmi);
+
+  //   Serial.println(F("Da hoan thanh tao va ve duong di."));
+  // }
+  // else
+  // {
+  //   if (field_vertices_screen.size() < 3)
+  //   {
+  //     Serial.println(F("Loi: Can it nhat 3 dinh da chuyen doi de tao duong di."));
+  //   }
+  //   if (working_width_px <= 0)
+  //   {
+  //     Serial.println(F("Loi: Chieu rong lam viec (pixel) khong hop le."));
+  //   }
+  // }
   if (field_vertices_screen.size() >= 3 && working_width_px > 0)
   {
-    
     Serial.print(F("Dang tao duong di voi working_width_px = "));
     Serial.print(working_width_px);
-    Serial.print(F(", startVertexIndex = "));
-    Serial.print(StartPoint);
-    Serial.print(F(", StartDir = "));
-    Serial.println(StartDir);
 
-    // Gọi hàm generate Path với các tham số đã tính toán
-    // Chuyển working_width_px sang double khi gọi
-    generatePath(field_vertices_screen, static_cast<double>(working_width_px), StartPoint, StartDir, hmi);
+    // Lấy vị trí máy cày hiện tại từ EKF và chuyển đổi
+    Point tractor_pos_for_path_gen_screen;
+    if (origin_set)
+    { // Đảm bảo gốc EKF đã được thiết lập
+      GpsPoint ekf_pos_as_gps;
+      // Sử dụng các biến toàn cục ekf_x, ekf_y, lon_origin, lat_origin, meters_per_deg_lon
+      if (fabs(meters_per_deg_lon) < GEOMETRY_EPSILON)
+      {
+        Serial.println(F("DFAP: Loi - meters_per_deg_lon chua duoc tinh hoac bang 0."));
+        // Có thể dùng giá trị mặc định hoặc không tạo đường đi
+        // Gán một vị trí mặc định nếu không có EKF, ví dụ trung tâm thửa ruộng
+        double sum_x = 0, sum_y = 0;
+        for (const auto &pt : field_vertices_screen)
+        {
+          sum_x += pt.x;
+          sum_y += pt.y;
+        }
+        tractor_pos_for_path_gen_screen = {sum_x / field_vertices_screen.size(), sum_y / field_vertices_screen.size()};
+      }
+      else
+      {
+
+        ekf_pos_as_gps.longitude = lon_origin + (ekf_x / meters_per_deg_lon);
+        ekf_pos_as_gps.latitude = lat_origin + (ekf_y / METERS_PER_DEGREE_LATITUDE); // METERS_PER_DEG_LAT từ globals.h
+        Serial.printf("\n DFAP: EKF origin da duoc set. %.13f, %.13f) m\n", ekf_pos_as_gps.longitude, ekf_pos_as_gps.latitude);
+        tractor_pos_for_path_gen_screen = transformGpsToScreen(ekf_pos_as_gps);
+      }
+    }
+    else
+    {
+      Serial.println(F("DFAP: EKF origin chua duoc set. Su dung diem bat dau mac dinh (dinh 0)."));
+      // Nếu gốc EKF chưa set, có thể dùng một điểm mặc định, ví dụ đỉnh đầu tiên của thửa ruộng
+      // hoặc trung tâm của thửa ruộng trên màn hình
+      if (!field_vertices_screen.empty())
+      {
+        tractor_pos_for_path_gen_screen = field_vertices_screen[0];
+      }
+      else
+      {
+        Serial.println(F("DFAP: Khong co dinh thua ruong de dat diem bat dau mac dinh."));
+        return; // Không thể tiếp tục
+      }
+    }
+    Serial.print(F(", Vi tri may cay (man hinh) de bat dau: ("));
+    Serial.print(tractor_pos_for_path_gen_screen.x, 1);
+    Serial.print(F(", "));
+    Serial.print(tractor_pos_for_path_gen_screen.y, 1);
+    Serial.print(F("), StartDir (initial_path_direction_preference) = "));
+    Serial.println(StartDir); // StartDir là biến toàn cục
+
+    generatePath(field_vertices_screen, static_cast<double>(working_width_px), tractor_pos_for_path_gen_screen, StartDir, hmi);
 
     Serial.println(F("Da hoan thanh tao va ve duong di."));
   }
@@ -590,47 +666,95 @@ return proj_a < proj_b; });
 
   return clipped_and_shrunk_segments;
 }
+
+int findClosestEdgeStartIndex(const std::vector<Point> &polygon, const Point &p, Point &closest_point_on_polygon)
+{
+  if (polygon.size() < 2)
+    return -1;
+  double min_dist_sq = -1.0;
+  int best_edge_start_idx = -1;
+
+  for (size_t i = 0; i < polygon.size(); ++i)
+  {
+    const Point &p1 = polygon[i];
+    const Point &p2 = polygon[(i + 1) % polygon.size()];
+    Point edge_vec = p2 - p1;
+    Point p_to_p1 = p - p1;
+    double edge_len_sq = (edge_vec.x * edge_vec.x + edge_vec.y * edge_vec.y);
+    Point current_closest_pt_on_edge;
+    double current_dist_sq;
+
+    if (edge_len_sq < GEOMETRY_EPSILON * GEOMETRY_EPSILON)
+    { // Cạnh là một điểm
+      current_closest_pt_on_edge = p1;
+    }
+    else
+    {
+      double t = p_to_p1.dot(edge_vec) / edge_len_sq;
+      if (t < 0.0)
+      {
+        current_closest_pt_on_edge = p1;
+      }
+      else if (t > 1.0)
+      {
+        current_closest_pt_on_edge = p2;
+      }
+      else
+      {
+        current_closest_pt_on_edge = p1 + edge_vec * t;
+      }
+    }
+    Point dist_vec = p - current_closest_pt_on_edge;
+    current_dist_sq = (dist_vec.x * dist_vec.x + dist_vec.y * dist_vec.y);
+
+    if (best_edge_start_idx == -1 || current_dist_sq < min_dist_sq)
+    {
+      min_dist_sq = current_dist_sq;
+      best_edge_start_idx = i;
+      closest_point_on_polygon = current_closest_pt_on_edge;
+    }
+  }
+  return best_edge_start_idx;
+}
+
 std::vector<Point> g_final_path_points;
 std::vector<Point> g_polygon_vertices;
 
 void generatePath(const std::vector<Point> &polygon_vertices,
-                                        double workingWidth,
-                                        int startVertexIndex, // StartPoint từ biến toàn cục
-                                        int startDirGlobal,   // StartDir từ biến toàn cục
-                                        HMI_Display &hmi_display)
+                  double workingWidth,
+                  const Point &current_tractor_screen_pos, // Vị trí máy cày hiện tại
+                  int initial_path_direction_preference,   // Tương tự StartDir cũ
+                  HMI_Display &hmi_display)
 {
-  g_polygon_vertices = polygon_vertices; // Lưu đa giác vào biến toàn cục để vẽ sau
-  // 1. Kiểm tra đầu vào cơ bản và xác định actualEdgeChoiceForOrientation
-  // ... (Logic này giữ nguyên như phiên bản trước, xác định actualEdgeChoiceForOrientation
-  //      dựa trên startVertexIndex và startDirGlobal) ...
+  g_polygon_vertices = polygon_vertices;
   size_t num_vertices = polygon_vertices.size();
+
   if (num_vertices < 3)
-  { /* ... */
+  {
+    Serial.println(F("GP_New: Loi - Da giac can it nhat 3 dinh."));
     return;
   }
-  if (workingWidth <= 0)
-  { /* ... */
+  if (workingWidth <= GEOMETRY_EPSILON)
+  {
+    Serial.println(F("GP_New: Loi - Chieu rong lam viec khong hop le."));
     return;
   }
-  if (startVertexIndex < 0 || startVertexIndex >= num_vertices)
-  {
-    startVertexIndex = 0; /* ... */
-  }
 
-  int actualEdgeChoiceForOrientation = 0;
-  if (startDirGlobal == 0)
-  {
-    actualEdgeChoiceForOrientation = (startVertexIndex - 1 + num_vertices) % num_vertices;
-    Serial.printf("GP: StartDir=0, chon canh TRUOC dinh %d (canh noi dinh %d -> %d) lam chuan.\n",
-                  startVertexIndex, actualEdgeChoiceForOrientation, startVertexIndex);
-  }
-  else
-  {
-    actualEdgeChoiceForOrientation = startVertexIndex;
-    Serial.printf("GP: StartDir=1, chon canh SAU dinh %d (canh noi dinh %d -> %d) lam chuan.\n",
-                  startVertexIndex, actualEdgeChoiceForOrientation, (actualEdgeChoiceForOrientation + 1) % num_vertices);
-  }
+  // 1. Tìm cạnh gần nhất với vị trí máy cày hiện tại
+  Point closest_point_on_field_boundary; // Điểm trên biên gần máy cày nhất
+  int closest_edge_start_idx = findClosestEdgeStartIndex(polygon_vertices, current_tractor_screen_pos, closest_point_on_field_boundary);
 
+  if (closest_edge_start_idx == -1)
+  {
+    Serial.println(F("GP_New: Loi - Khong tim thay canh gan nhat."));
+    return;
+  }
+  Serial.printf("GP_New: May cay o (%.1f, %.1f). Canh gan nhat bat dau tu dinh %d.\n",
+                current_tractor_screen_pos.x, current_tractor_screen_pos.y, closest_edge_start_idx);
+
+  int actualEdgeChoiceForOrientation = closest_edge_start_idx; // Cạnh này sẽ là cạnh chuẩn
+  Serial.printf("GP_New: Canh chon lam canh chuan cho huong quet: %d\n", actualEdgeChoiceForOrientation);
+  delay(2000); // Dừng một chút để người dùng có thể đọc thông tin
   // Vẽ đa giác gốc
   if (polygon_vertices.size() >= 3)
   {
@@ -641,108 +765,106 @@ void generatePath(const std::vector<Point> &polygon_vertices,
   }
 
   // 2. Tính toán hướng quét (primary_dir) và hướng offset ban đầu (offset_dir)
-  const Point &edge_ref_p1 = polygon_vertices[actualEdgeChoiceForOrientation];                      // Điểm đầu của cạnh chuẩn
-  const Point &edge_ref_p2 = polygon_vertices[(actualEdgeChoiceForOrientation + 1) % num_vertices]; // Điểm cuối
+  const Point &edge_ref_p1 = polygon_vertices[actualEdgeChoiceForOrientation];
+  const Point &edge_ref_p2 = polygon_vertices[(actualEdgeChoiceForOrientation + 1) % num_vertices];
   Point primary_dir = (edge_ref_p2 - edge_ref_p1);
+
   if (primary_dir.length() < GEOMETRY_EPSILON)
-  { /* ... */
+  {
+    Serial.println(F("GP_New: Loi - Canh chuan co chieu dai bang 0."));
     return;
   }
 
   Point primary_dir_normalized = primary_dir.normalized();
-  Point initial_offset_dir_normalized = primary_dir_normalized.perpendicular(); // Hướng vuông góc ban đầu
+  Point initial_offset_dir_normalized = primary_dir_normalized.perpendicular();
 
-  // --- THAY ĐỔI BƯỚC 3 & 4: Xác định hướng offset "vào trong" và bắt đầu quét từ cạnh chuẩn ---
-
-  Point edge_midpoint = (edge_ref_p1 + edge_ref_p2) * 0.5; // Trung điểm cạnh chuẩn
-  Point inward_offset_dir = initial_offset_dir_normalized; // Giả sử hướng này là vào trong
-
-  // Kiểm tra xem initial_offset_dir_normalized có thực sự hướng vào trong đa giác từ cạnh chuẩn không
-  // Tạo một điểm thử nghiệm nhỏ bên trong từ trung điểm cạnh theo hướng offset
-  Point test_point_inward = edge_midpoint + inward_offset_dir * (workingWidth * 0.1); // Bước nhỏ vào trong
+  // 3. Xác định hướng offset "vào trong"
+  Point edge_midpoint = (edge_ref_p1 + edge_ref_p2) * 0.5;
+  Point inward_offset_dir = initial_offset_dir_normalized;
+  Point test_point_inward = edge_midpoint + inward_offset_dir * (workingWidth * 0.1);
   if (!isInside(test_point_inward, polygon_vertices))
   {
-    // Nếu không phải, đảo ngược hướng offset
     inward_offset_dir = inward_offset_dir * -1.0;
-    test_point_inward = edge_midpoint + inward_offset_dir * (workingWidth * 0.1); // Kiểm tra lại
-    if (!isInside(test_point_inward, polygon_vertices))
-    {
-      // Vẫn không vào trong, có thể đa giác rất hẹp hoặc isInside có vấn đề ở biên
-      // Hoặc cạnh được chọn là một phần của vùng lõm "hướng ra ngoài"
-      Serial.println(F("GP: Canh bao - Khong xac dinh duoc huong offset vao trong tu canh chuan. Su dung mac dinh."));
-      // Trong trường hợp này, `initial_offset_dir_normalized` có thể không đúng,
-      // nhưng chúng ta vẫn tiếp tục với inward_offset_dir (có thể đã đảo hoặc chưa)
-    }
-    else
-    {
-      Serial.println(F("GP: Huong offset da dao nguoc de di vao trong."));
-    }
-  }
-  else
-  {
-    Serial.println(F("GP: Huong offset ban dau duoc xac nhan la di vao trong."));
+    // Kiểm tra lại (tùy chọn)
+    // test_point_inward = edge_midpoint + inward_offset_dir * (workingWidth * 0.1);
+    // if (!isInside(test_point_inward, polygon_vertices)) {
+    //   Serial.println(F("GP_New: Canh bao - Van khong xac dinh duoc huong vao trong."));
+    // }
   }
 
-  // 4. Tạo các đường quét song song bắt đầu từ cạnh chuẩn và tiến vào trong
+  // 4. Tạo các đường quét song song
   std::vector<Segment> all_path_segments;
-  double accumulated_offset_distance = workingWidth / 2.0; // Khoảng cách offset đầu tiên từ cạnh chuẩn
+  double accumulated_offset_distance = workingWidth / 2.0;
   bool segments_found_on_last_line = true;
-  int max_sweeps = (int)((std::max(SCREEN_WIDTH_PX, SCREEN_HEIGHT_PX) * 1.5) / workingWidth) + 10; // Giới hạn số lượt quét an toàn
+  int max_sweeps = (int)((std::max(SCREEN_WIDTH_PX, SCREEN_HEIGHT_PX) * 2.0) / workingWidth) + 20; // Tăng giới hạn quét
   int sweep_count = 0;
 
-  Serial.println(F("GP: Bat dau tao duong quet tu canh chuan."));
-  while (segments_found_on_last_line && sweep_count < max_sweeps)
+  // Quét theo hướng inward_offset_dir
+  while (segments_found_on_last_line && sweep_count < max_sweeps / 2)
   {
-    // Điểm gốc của đường quét hiện tại được dịch chuyển từ trung điểm cạnh chuẩn
-    // dọc theo hướng inward_offset_dir
     Point current_line_origin = edge_midpoint + inward_offset_dir * accumulated_offset_distance;
-
-    std::vector<Segment> segments_on_line = clipLineWithPolygon(current_line_origin, primary_dir_normalized, polygon_vertices,
-                                                                workingWidth); // Cắt đường thẳng với đa giác
-
+    std::vector<Segment> segments_on_line = clipLineWithPolygon(current_line_origin, primary_dir_normalized, polygon_vertices, workingWidth);
     if (!segments_on_line.empty())
     {
       all_path_segments.insert(all_path_segments.end(), segments_on_line.begin(), segments_on_line.end());
-      segments_found_on_last_line = true; // Tiếp tục nếu vẫn tìm thấy
+      segments_found_on_last_line = true;
     }
     else
     {
-      // Nếu không tìm thấy đoạn nào trên đường quét này:
-      // - Nếu trước đó đã có đoạn thì có thể đã quét hết đa giác.
-      // - Nếu chưa có đoạn nào mà đã quét vài lần thì có thể có vấn đề.
       if (!all_path_segments.empty() && sweep_count > 0)
-      {                                      // Đã có đoạn và đã quét ít nhất 1 lần hợp lệ
-        segments_found_on_last_line = false; // Dừng lại
-        Serial.println(F("GP: Khong tim thay doan nao tren duong quet hien tai, ket thuc quet."));
-      }
-      else if (all_path_segments.empty() && sweep_count > 5)
-      { // Quét nhiều lần mà vẫn rỗng
         segments_found_on_last_line = false;
-        Serial.println(F("GP: Khong tim thay doan nao sau nhieu luot quet, ket thuc quet."));
-      }
-      // Nếu all_path_segments vẫn rỗng và sweep_count còn nhỏ, vẫn cho thử tiếp
+      else if (all_path_segments.empty() && sweep_count > 5)
+        segments_found_on_last_line = false;
     }
-
     accumulated_offset_distance += workingWidth;
     sweep_count++;
   }
 
-  Serial.printf("GP: Hoan thanh tao duong quet. Luot quet: %d. Tong so doan tho TRUOC UNIQUE: %d\n", sweep_count, all_path_segments.size());
+  // Quét theo hướng ngược lại của inward_offset_dir (nếu cần, để bao phủ toàn bộ đa giác)
+  // Reset và quét từ cạnh chuẩn ra hướng ngược lại
+  accumulated_offset_distance = workingWidth / 2.0; // Bắt đầu lại từ cạnh chuẩn
+  segments_found_on_last_line = true;
+  int sweep_count_reverse = 0;
+  Point outward_offset_dir = inward_offset_dir * -1.0; // Hướng ngược lại
 
-  // --- BƯỚC MỚI: Loại bỏ các đoạn (Segment) giống hệt nhau ---
+  // Bỏ qua lần quét đầu tiên trùng với lần quét đầu của inward_offset_dir
+  // accumulated_offset_distance += workingWidth; // Bắt đầu từ đường quét tiếp theo ở hướng ngoài
+
+  while (segments_found_on_last_line && sweep_count_reverse < max_sweeps / 2)
+  {
+    Point current_line_origin = edge_midpoint + outward_offset_dir * accumulated_offset_distance;
+    std::vector<Segment> segments_on_line = clipLineWithPolygon(current_line_origin, primary_dir_normalized, polygon_vertices, workingWidth);
+
+    if (!segments_on_line.empty())
+    {
+      all_path_segments.insert(all_path_segments.end(), segments_on_line.begin(), segments_on_line.end());
+      segments_found_on_last_line = true;
+    }
+    else
+    {
+      if (sweep_count_reverse > 0)
+        segments_found_on_last_line = false; // Dừng nếu đã quét ra ngoài và không thấy gì
+      else if (sweep_count_reverse > 5 && segments_on_line.empty())
+        segments_found_on_last_line = false; // Dừng nếu quét nhiều mà rỗng
+    }
+    accumulated_offset_distance += workingWidth;
+    sweep_count_reverse++;
+    if (accumulated_offset_distance > std::max(SCREEN_WIDTH_PX, SCREEN_HEIGHT_PX) * 1.5)
+      break; // Giới hạn an toàn
+  }
+
+  Serial.printf("GP_New: Tong so doan tho TRUOC UNIQUE: %d (Quet trong: %d, Quet ngoai: %d)\n",
+                all_path_segments.size(), sweep_count, sweep_count_reverse);
+
+  // Loại bỏ các đoạn trùng lặp
   if (!all_path_segments.empty())
   {
-    // Sắp xếp tạm thời để std::unique hoạt động hiệu quả với comparator
-    // Sắp xếp theo tọa độ điểm đầu, rồi điểm cuối để các đoạn giống nhau nằm cạnh nhau
     std::sort(all_path_segments.begin(), all_path_segments.end(), [](const Segment &a, const Segment &b)
               {
-if (std::fabs(a.p1.x - b.p1.x) > GEOMETRY_EPSILON) return a.p1.x < b.p1.x;
-if (std::fabs(a.p1.y - b.p1.y) > GEOMETRY_EPSILON) return a.p1.y < b.p1.y;
-if (std::fabs(a.p2.x - b.p2.x) > GEOMETRY_EPSILON) return a.p2.x < b.p2.x;
-return a.p2.y < b.p2.y; });
-
-    // Định nghĩa hàm so sánh hai Segment (coi là bằng nhau nếu các điểm đầu/cuối tương ứng gần nhau)
-    // Hoặc nếu chúng là cùng một đoạn nhưng hướng ngược lại (p1 của a = p2 của b VÀ p2 của a = p1 của b)
+              if (std::fabs(a.p1.x - b.p1.x) > GEOMETRY_EPSILON) return a.p1.x < b.p1.x;
+              if (std::fabs(a.p1.y - b.p1.y) > GEOMETRY_EPSILON) return a.p1.y < b.p1.y;
+              if (std::fabs(a.p2.x - b.p2.x) > GEOMETRY_EPSILON) return a.p2.x < b.p2.x;
+              return a.p2.y < b.p2.y; });
     auto segments_are_equivalent = [](const Segment &a, const Segment &b)
     {
       bool same_direction = (a.p1 - b.p1).length() < GEOMETRY_EPSILON * 5 &&
@@ -752,121 +874,387 @@ return a.p2.y < b.p2.y; });
       return same_direction || reverse_direction;
     };
     all_path_segments.erase(std::unique(all_path_segments.begin(), all_path_segments.end(), segments_are_equivalent), all_path_segments.end());
-    Serial.printf("GP: Tong so doan tho SAU UNIQUE: %d\n", all_path_segments.size());
+    Serial.printf("GP_New: Tong so doan tho SAU UNIQUE: %d\n", all_path_segments.size());
   }
 
-  // DEBUG: In ra tất cả các đoạn trong all_path_segments TRƯỚC KHI SẮP XẾP
   if (all_path_segments.empty())
   {
-    Serial.println(F("GP_DEBUG: all_path_segments Rỗng TRUOC KHI SAP XEP."));
-  }
-  else
-  {
-    Serial.println(F("GP_DEBUG: Cac doan trong all_path_segments TRUOC KHI SAP XEP:"));
-    for (size_t k = 0; k < all_path_segments.size(); ++k)
-    {
-      const auto &seg = all_path_segments[k];
-      Serial.printf("  Seg %d: (%.1f, %.1f) -> (%.1f, %.1f)\n",
-                    k, seg.p1.x, seg.p1.y, seg.p2.x, seg.p2.y);
-    }
+    Serial.println(F("GP_New: Khong co doan duong di nao duoc tao."));
+    return;
   }
 
-  // 5. Sắp xếp các đoạn đường đi theo thứ tự quét
-  // Gốc chiếu để sắp xếp nên là một điểm trên cạnh chuẩn, ví dụ edge_ref_p1
-  const Point &edge_ref_p1_for_sort = polygon_vertices[actualEdgeChoiceForOrientation]; // Đổi tên biến để rõ ràng
-  std::sort(all_path_segments.begin(), all_path_segments.end(), [&](const Segment &a, const Segment &b)
+  // 5. Sắp xếp các đoạn đường đi theo khoảng cách từ chúng đến vị trí máy cày
+  // (hoặc đến điểm `closest_point_on_field_boundary` là hình chiếu của máy cày lên biên)
+  // Điều này giúp bắt đầu từ đoạn gần máy cày nhất.
+  // Sắp xếp theo khoảng cách của trung điểm đoạn đến current_tractor_screen_pos
+  std::sort(all_path_segments.begin(), all_path_segments.end(),
+            [&](const Segment &a, const Segment &b)
             {
-Point center_a = (a.p1 + a.p2) * 0.5;
-Point center_b = (b.p1 + b.p2) * 0.5;
-// Chiếu lên inward_offset_dir so với điểm đầu của cạnh chuẩn
-return (center_a - edge_ref_p1_for_sort).dot(inward_offset_dir) < (center_b - edge_ref_p1_for_sort).dot(inward_offset_dir); });
+              Point center_a = (a.p1 + a.p2) * 0.5;
+              Point center_b = (b.p1 + b.p2) * 0.5;
+              // Sắp xếp các đoạn đường dựa trên khoảng cách từ tâm của chúng đến vị trí máy cày
+              return (center_a - current_tractor_screen_pos).lengthSq() < (center_b - current_tractor_screen_pos).lengthSq();
+            });
 
-  // 6. Nối các đoạn thành đường đi ziczac (Boustrophedon)
-  std::vector<Point> final_path_points;
-  Point last_point;
+  // 6. Nối các đoạn thành đường đi ziczac
+  std::vector<Point> final_path_points_temp; // Sử dụng vector tạm thời
+  Point last_point_on_path;
 
   if (!all_path_segments.empty())
   {
-    Segment first_seg = all_path_segments[0]; // Bây giờ first_seg là duy nhất
-    Point p_start_init = first_seg.p1;
-    Point p_end_init = first_seg.p2;
+    Segment first_seg = all_path_segments[0];
+    Point p_start_init, p_end_init;
 
-    // Quyết định hướng đi ban đầu của first_seg dựa trên startVertexIndex
-    if (startVertexIndex >= 0 && startVertexIndex < num_vertices)
+    // Xác định hướng đi ban đầu của đoạn đầu tiên
+    // sao cho điểm bắt đầu (p_start_init) gần với current_tractor_screen_pos hơn
+    if ((first_seg.p1 - current_tractor_screen_pos).lengthSq() < (first_seg.p2 - current_tractor_screen_pos).lengthSq())
     {
-      Point target_v = polygon_vertices[startVertexIndex];
-      if ((first_seg.p2 - target_v).length() < (first_seg.p1 - target_v).length())
-      {
-        p_start_init = first_seg.p2; // p2 gần target_v hơn, bắt đầu từ p2
-        p_end_init = first_seg.p1;
-        Serial.println(F("GP: Dao huong doan quet dau tien de gan hon dinh bat dau."));
-      }
-    }
-    final_path_points.push_back(p_start_init);
-    final_path_points.push_back(p_end_init);
-    last_point = p_end_init;
-  }
-  // Phần còn lại của vòng lặp nối ziczac giữ nguyên
-  for (size_t i = 1; i < all_path_segments.size(); ++i)
-  {
-    // ... (logic nối các đoạn còn lại như cũ)
-    Segment current_seg = all_path_segments[i];
-    Point start_pt, end_pt;
-    if ((current_seg.p1 - last_point).length() < (current_seg.p2 - last_point).length())
-    {
-      start_pt = current_seg.p1;
-      end_pt = current_seg.p2;
+      p_start_init = first_seg.p1;
+      p_end_init = first_seg.p2;
     }
     else
     {
-      start_pt = current_seg.p2;
-      end_pt = current_seg.p1;
+      p_start_init = first_seg.p2;
+      p_end_init = first_seg.p1;
     }
-    final_path_points.push_back(start_pt);
-    final_path_points.push_back(end_pt);
-    last_point = end_pt;
-  }
-  Serial.printf("GP: Generated final path with %d points.\n", final_path_points.size());
 
-  // 7. Điều chỉnh điểm bắt đầu dựa trên startVertexIndex (đảo ngược toàn bộ đường nếu cần)
-  // ... (Logic này giữ nguyên, startVertexIndex ở đây là StartPoint của bạn) ...
-  if (!final_path_points.empty() && startVertexIndex >= 0 && startVertexIndex < num_vertices)
-  {
-    Point target_start_vertex = polygon_vertices[startVertexIndex];
-    double dist_to_path_start = (final_path_points.front() - target_start_vertex).length();
-    double dist_to_path_end = (final_path_points.back() - target_start_vertex).length();
-    if (dist_to_path_end < dist_to_path_start)
+    // initial_path_direction_preference (tương tự StartDir cũ) có thể dùng để lật hướng đoạn đầu tiên nếu muốn
+    // Ví dụ: nếu initial_path_direction_preference == 1, thì lật lại
+    if (initial_path_direction_preference == 1)
+    { // Giả sử 1 là "đảo ngược"
+      std::swap(p_start_init, p_end_init);
+      Serial.println(F("GP_New: Dao huong doan quet dau tien theo initial_path_direction_preference."));
+    }
+
+    final_path_points_temp.push_back(p_start_init);
+    final_path_points_temp.push_back(p_end_init);
+    last_point_on_path = p_end_init;
+
+    // Nối các đoạn còn lại
+    for (size_t i = 1; i < all_path_segments.size(); ++i)
     {
-      std::reverse(final_path_points.begin(), final_path_points.end());
-      Serial.printf("GP: Path reversed to start closer to target vertex %d.\n", startVertexIndex);
+      Segment current_seg = all_path_segments[i];
+      Point next_start_pt, next_end_pt;
+      if ((current_seg.p1 - last_point_on_path).lengthSq() < (current_seg.p2 - last_point_on_path).lengthSq())
+      {
+        next_start_pt = current_seg.p1;
+        next_end_pt = current_seg.p2;
+      }
+      else
+      {
+        next_start_pt = current_seg.p2;
+        next_end_pt = current_seg.p1;
+      }
+      final_path_points_temp.push_back(next_start_pt);
+      final_path_points_temp.push_back(next_end_pt);
+      last_point_on_path = next_end_pt;
     }
   }
 
-  // 8. Vẽ đường đi cuối cùng lên HMI
-  // ... (Logic này giữ nguyên) ...
-  if (final_path_points.size() >= 2)
+  g_final_path_points = final_path_points_temp; // Gán vào biến toàn cục
+  Serial.printf("GP_New: Generated final path with %d points.\n", g_final_path_points.size());
+
+  // 7. Vẽ đường đi cuối cùng
+  if (g_final_path_points.size() >= 2)
   {
-    Serial.println(F("GP: Drawing final path..."));
-    hmi_display.drawPointMarker(final_path_points.front(), GREEN); // Vẽ điểm đầu tiên
-    //hmi_display.drawPic(final_path_points.front().x - TRACTOR_PIC_WIDTH / 2, final_path_points.front().y - TRACTOR_PIC_HEIGHT / 2, TRACTOR_PIC_ID_DEFAULT);
-    hmi.visPic(25,1);
-    String command = "p1.x=" + String((int)(final_path_points.front().x - TRACTOR_PIC_FIXED_WIDTH / 2));
+    Serial.println(F("GP_New: Drawing final path..."));
+    hmi_display.drawPointMarker(g_final_path_points.front(), GREEN);
+    hmi.visPic(25, 1); // ID của đối tượng Picture trên HMI, 1 là visible
+    String command = "p1.x=" + String((int)(current_tractor_screen_pos.x - TRACTOR_PIC_FIXED_WIDTH / 2.0));
     hmi.sendCommand(command);
-    command = "p1.y=" + String((int)(final_path_points.front().y - TRACTOR_PIC_FIXED_HEIGHT / 2));
+    command = "p1.y=" + String((int)(current_tractor_screen_pos.y - TRACTOR_PIC_FIXED_HEIGHT / 2.0));
     hmi.sendCommand(command);
-    g_final_path_points = final_path_points;
-    for (size_t i = 0; i < final_path_points.size() - 1; ++i)
+    // ID ảnh ban đầu cho máy cày, có thể là hướng mặc định hoặc dựa trên góc đầu tiên của đường đi
+    // command = "p1.pic=" + String(TRACTOR_PIC_ID_DEFAULT); // Hoặc một ID ảnh phù hợp
+    // hmi.sendCommand(command);
+
+    for (size_t i = 0; i < g_final_path_points.size() - 1; ++i)
     {
-      hmi_display.drawLine(final_path_points[i], final_path_points[i + 1], YELLOW);
+      hmi_display.drawLine(g_final_path_points[i], g_final_path_points[i + 1], YELLOW);
     }
-    hmi_display.drawPointMarker(final_path_points.back(), RED); // Vẽ điểm cuối cùng
+    hmi_display.drawPointMarker(g_final_path_points.back(), RED);
   }
   else
   {
-    Serial.println(F("GP: Loi - Duong di cuoi cung khong du diem de ve."));
+    Serial.println(F("GP_New: Loi - Duong di cuoi cung khong du diem de ve."));
   }
-  Serial.println(F("GP: Path generation and drawing function finished."));
+  Serial.println(F("GP_New: Path generation and drawing function finished."));
 }
+
+// void generatePath(const std::vector<Point> &polygon_vertices,
+//                   double workingWidth,
+//                   int startVertexIndex, // StartPoint từ biến toàn cục
+//                   int startDirGlobal,   // StartDir từ biến toàn cục
+//                   HMI_Display &hmi_display)
+// {
+//   g_polygon_vertices = polygon_vertices; // Lưu đa giác vào biến toàn cục để vẽ sau
+//   // 1. Kiểm tra đầu vào cơ bản và xác định actualEdgeChoiceForOrientation
+//   // ... (Logic này giữ nguyên như phiên bản trước, xác định actualEdgeChoiceForOrientation
+//   //      dựa trên startVertexIndex và startDirGlobal) ...
+//   size_t num_vertices = polygon_vertices.size();
+//   if (num_vertices < 3)
+//   { /* ... */
+//     return;
+//   }
+//   if (workingWidth <= 0)
+//   { /* ... */
+//     return;
+//   }
+//   if (startVertexIndex < 0 || startVertexIndex >= num_vertices)
+//   {
+//     startVertexIndex = 0; /* ... */
+//   }
+
+//   int actualEdgeChoiceForOrientation = 0;
+//   if (startDirGlobal == 0)
+//   {
+//     actualEdgeChoiceForOrientation = (startVertexIndex - 1 + num_vertices) % num_vertices;
+//     Serial.printf("GP: StartDir=0, chon canh TRUOC dinh %d (canh noi dinh %d -> %d) lam chuan.\n",
+//                   startVertexIndex, actualEdgeChoiceForOrientation, startVertexIndex);
+//   }
+//   else
+//   {
+//     actualEdgeChoiceForOrientation = startVertexIndex;
+//     Serial.printf("GP: StartDir=1, chon canh SAU dinh %d (canh noi dinh %d -> %d) lam chuan.\n",
+//                   startVertexIndex, actualEdgeChoiceForOrientation, (actualEdgeChoiceForOrientation + 1) % num_vertices);
+//   }
+
+//   // Vẽ đa giác gốc
+//   if (polygon_vertices.size() >= 3)
+//   {
+//     for (size_t i = 0; i < polygon_vertices.size(); ++i)
+//     {
+//       hmi_display.drawLine(polygon_vertices[i], polygon_vertices[(i + 1) % polygon_vertices.size()], BLUE);
+//     }
+//   }
+
+//   // 2. Tính toán hướng quét (primary_dir) và hướng offset ban đầu (offset_dir)
+//   const Point &edge_ref_p1 = polygon_vertices[actualEdgeChoiceForOrientation];                      // Điểm đầu của cạnh chuẩn
+//   const Point &edge_ref_p2 = polygon_vertices[(actualEdgeChoiceForOrientation + 1) % num_vertices]; // Điểm cuối
+//   Point primary_dir = (edge_ref_p2 - edge_ref_p1);
+//   if (primary_dir.length() < GEOMETRY_EPSILON)
+//   { /* ... */
+//     return;
+//   }
+
+//   Point primary_dir_normalized = primary_dir.normalized();
+//   Point initial_offset_dir_normalized = primary_dir_normalized.perpendicular(); // Hướng vuông góc ban đầu
+
+//   // --- THAY ĐỔI BƯỚC 3 & 4: Xác định hướng offset "vào trong" và bắt đầu quét từ cạnh chuẩn ---
+
+//   Point edge_midpoint = (edge_ref_p1 + edge_ref_p2) * 0.5; // Trung điểm cạnh chuẩn
+//   Point inward_offset_dir = initial_offset_dir_normalized; // Giả sử hướng này là vào trong
+
+//   // Kiểm tra xem initial_offset_dir_normalized có thực sự hướng vào trong đa giác từ cạnh chuẩn không
+//   // Tạo một điểm thử nghiệm nhỏ bên trong từ trung điểm cạnh theo hướng offset
+//   Point test_point_inward = edge_midpoint + inward_offset_dir * (workingWidth * 0.1); // Bước nhỏ vào trong
+//   if (!isInside(test_point_inward, polygon_vertices))
+//   {
+//     // Nếu không phải, đảo ngược hướng offset
+//     inward_offset_dir = inward_offset_dir * -1.0;
+//     test_point_inward = edge_midpoint + inward_offset_dir * (workingWidth * 0.1); // Kiểm tra lại
+//     if (!isInside(test_point_inward, polygon_vertices))
+//     {
+//       // Vẫn không vào trong, có thể đa giác rất hẹp hoặc isInside có vấn đề ở biên
+//       // Hoặc cạnh được chọn là một phần của vùng lõm "hướng ra ngoài"
+//       Serial.println(F("GP: Canh bao - Khong xac dinh duoc huong offset vao trong tu canh chuan. Su dung mac dinh."));
+//       // Trong trường hợp này, `initial_offset_dir_normalized` có thể không đúng,
+//       // nhưng chúng ta vẫn tiếp tục với inward_offset_dir (có thể đã đảo hoặc chưa)
+//     }
+//     else
+//     {
+//       Serial.println(F("GP: Huong offset da dao nguoc de di vao trong."));
+//     }
+//   }
+//   else
+//   {
+//     Serial.println(F("GP: Huong offset ban dau duoc xac nhan la di vao trong."));
+//   }
+
+//   // 4. Tạo các đường quét song song bắt đầu từ cạnh chuẩn và tiến vào trong
+//   std::vector<Segment> all_path_segments;
+//   double accumulated_offset_distance = workingWidth / 2.0; // Khoảng cách offset đầu tiên từ cạnh chuẩn
+//   bool segments_found_on_last_line = true;
+//   int max_sweeps = (int)((std::max(SCREEN_WIDTH_PX, SCREEN_HEIGHT_PX) * 1.5) / workingWidth) + 10; // Giới hạn số lượt quét an toàn
+//   int sweep_count = 0;
+
+//   Serial.println(F("GP: Bat dau tao duong quet tu canh chuan."));
+//   while (segments_found_on_last_line && sweep_count < max_sweeps)
+//   {
+//     // Điểm gốc của đường quét hiện tại được dịch chuyển từ trung điểm cạnh chuẩn
+//     // dọc theo hướng inward_offset_dir
+//     Point current_line_origin = edge_midpoint + inward_offset_dir * accumulated_offset_distance;
+
+//     std::vector<Segment> segments_on_line = clipLineWithPolygon(current_line_origin, primary_dir_normalized, polygon_vertices,
+//                                                                 workingWidth); // Cắt đường thẳng với đa giác
+
+//     if (!segments_on_line.empty())
+//     {
+//       all_path_segments.insert(all_path_segments.end(), segments_on_line.begin(), segments_on_line.end());
+//       segments_found_on_last_line = true; // Tiếp tục nếu vẫn tìm thấy
+//     }
+//     else
+//     {
+//       // Nếu không tìm thấy đoạn nào trên đường quét này:
+//       // - Nếu trước đó đã có đoạn thì có thể đã quét hết đa giác.
+//       // - Nếu chưa có đoạn nào mà đã quét vài lần thì có thể có vấn đề.
+//       if (!all_path_segments.empty() && sweep_count > 0)
+//       {                                      // Đã có đoạn và đã quét ít nhất 1 lần hợp lệ
+//         segments_found_on_last_line = false; // Dừng lại
+//         Serial.println(F("GP: Khong tim thay doan nao tren duong quet hien tai, ket thuc quet."));
+//       }
+//       else if (all_path_segments.empty() && sweep_count > 5)
+//       { // Quét nhiều lần mà vẫn rỗng
+//         segments_found_on_last_line = false;
+//         Serial.println(F("GP: Khong tim thay doan nao sau nhieu luot quet, ket thuc quet."));
+//       }
+//       // Nếu all_path_segments vẫn rỗng và sweep_count còn nhỏ, vẫn cho thử tiếp
+//     }
+
+//     accumulated_offset_distance += workingWidth;
+//     sweep_count++;
+//   }
+
+//   Serial.printf("GP: Hoan thanh tao duong quet. Luot quet: %d. Tong so doan tho TRUOC UNIQUE: %d\n", sweep_count, all_path_segments.size());
+
+//   // --- BƯỚC MỚI: Loại bỏ các đoạn (Segment) giống hệt nhau ---
+//   if (!all_path_segments.empty())
+//   {
+//     // Sắp xếp tạm thời để std::unique hoạt động hiệu quả với comparator
+//     // Sắp xếp theo tọa độ điểm đầu, rồi điểm cuối để các đoạn giống nhau nằm cạnh nhau
+//     std::sort(all_path_segments.begin(), all_path_segments.end(), [](const Segment &a, const Segment &b)
+//               {
+//                 if (std::fabs(a.p1.x - b.p1.x) > GEOMETRY_EPSILON) return a.p1.x < b.p1.x;
+//                 if (std::fabs(a.p1.y - b.p1.y) > GEOMETRY_EPSILON) return a.p1.y < b.p1.y;
+//                 if (std::fabs(a.p2.x - b.p2.x) > GEOMETRY_EPSILON) return a.p2.x < b.p2.x;
+//                 return a.p2.y < b.p2.y; });
+
+//     // Định nghĩa hàm so sánh hai Segment (coi là bằng nhau nếu các điểm đầu/cuối tương ứng gần nhau)
+//     // Hoặc nếu chúng là cùng một đoạn nhưng hướng ngược lại (p1 của a = p2 của b VÀ p2 của a = p1 của b)
+//     auto segments_are_equivalent = [](const Segment &a, const Segment &b)
+//     {
+//       bool same_direction = (a.p1 - b.p1).length() < GEOMETRY_EPSILON * 5 &&
+//                             (a.p2 - b.p2).length() < GEOMETRY_EPSILON * 5;
+//       bool reverse_direction = (a.p1 - b.p2).length() < GEOMETRY_EPSILON * 5 &&
+//                                (a.p2 - b.p1).length() < GEOMETRY_EPSILON * 5;
+//       return same_direction || reverse_direction;
+//     };
+//     all_path_segments.erase(std::unique(all_path_segments.begin(), all_path_segments.end(), segments_are_equivalent), all_path_segments.end());
+//     Serial.printf("GP: Tong so doan tho SAU UNIQUE: %d\n", all_path_segments.size());
+//   }
+
+//   // DEBUG: In ra tất cả các đoạn trong all_path_segments TRƯỚC KHI SẮP XẾP
+//   if (all_path_segments.empty())
+//   {
+//     Serial.println(F("GP_DEBUG: all_path_segments Rỗng TRUOC KHI SAP XEP."));
+//   }
+//   else
+//   {
+//     Serial.println(F("GP_DEBUG: Cac doan trong all_path_segments TRUOC KHI SAP XEP:"));
+//     for (size_t k = 0; k < all_path_segments.size(); ++k)
+//     {
+//       const auto &seg = all_path_segments[k];
+//       Serial.printf("  Seg %d: (%.1f, %.1f) -> (%.1f, %.1f)\n",
+//                     k, seg.p1.x, seg.p1.y, seg.p2.x, seg.p2.y);
+//     }
+//   }
+
+//   // 5. Sắp xếp các đoạn đường đi theo thứ tự quét
+//   // Gốc chiếu để sắp xếp nên là một điểm trên cạnh chuẩn, ví dụ edge_ref_p1
+//   const Point &edge_ref_p1_for_sort = polygon_vertices[actualEdgeChoiceForOrientation]; // Đổi tên biến để rõ ràng
+//   std::sort(all_path_segments.begin(), all_path_segments.end(), [&](const Segment &a, const Segment &b)
+//             {
+//               Point center_a = (a.p1 + a.p2) * 0.5;
+//               Point center_b = (b.p1 + b.p2) * 0.5;
+//               // Chiếu lên inward_offset_dir so với điểm đầu của cạnh chuẩn
+//               return (center_a - edge_ref_p1_for_sort).dot(inward_offset_dir) < (center_b - edge_ref_p1_for_sort).dot(inward_offset_dir); });
+
+//   // 6. Nối các đoạn thành đường đi ziczac (Boustrophedon)
+//   std::vector<Point> final_path_points;
+//   Point last_point;
+
+//   if (!all_path_segments.empty())
+//   {
+//     Segment first_seg = all_path_segments[0]; // Bây giờ first_seg là duy nhất
+//     Point p_start_init = first_seg.p1;
+//     Point p_end_init = first_seg.p2;
+
+//     // Quyết định hướng đi ban đầu của first_seg dựa trên startVertexIndex
+//     if (startVertexIndex >= 0 && startVertexIndex < num_vertices)
+//     {
+//       Point target_v = polygon_vertices[startVertexIndex];
+//       if ((first_seg.p2 - target_v).length() < (first_seg.p1 - target_v).length())
+//       {
+//         p_start_init = first_seg.p2; // p2 gần target_v hơn, bắt đầu từ p2
+//         p_end_init = first_seg.p1;
+//         Serial.println(F("GP: Dao huong doan quet dau tien de gan hon dinh bat dau."));
+//       }
+//     }
+//     final_path_points.push_back(p_start_init);
+//     final_path_points.push_back(p_end_init);
+//     last_point = p_end_init;
+//   }
+//   // Phần còn lại của vòng lặp nối ziczac giữ nguyên
+//   for (size_t i = 1; i < all_path_segments.size(); ++i)
+//   {
+//     // ... (logic nối các đoạn còn lại như cũ)
+//     Segment current_seg = all_path_segments[i];
+//     Point start_pt, end_pt;
+//     if ((current_seg.p1 - last_point).length() < (current_seg.p2 - last_point).length())
+//     {
+//       start_pt = current_seg.p1;
+//       end_pt = current_seg.p2;
+//     }
+//     else
+//     {
+//       start_pt = current_seg.p2;
+//       end_pt = current_seg.p1;
+//     }
+//     final_path_points.push_back(start_pt);
+//     final_path_points.push_back(end_pt);
+//     last_point = end_pt;
+//   }
+//   Serial.printf("GP: Generated final path with %d points.\n", final_path_points.size());
+
+//   // 7. Điều chỉnh điểm bắt đầu dựa trên startVertexIndex (đảo ngược toàn bộ đường nếu cần)
+//   // ... (Logic này giữ nguyên, startVertexIndex ở đây là StartPoint của bạn) ...
+//   if (!final_path_points.empty() && startVertexIndex >= 0 && startVertexIndex < num_vertices)
+//   {
+//     Point target_start_vertex = polygon_vertices[startVertexIndex];
+//     double dist_to_path_start = (final_path_points.front() - target_start_vertex).length();
+//     double dist_to_path_end = (final_path_points.back() - target_start_vertex).length();
+//     if (dist_to_path_end < dist_to_path_start)
+//     {
+//       std::reverse(final_path_points.begin(), final_path_points.end());
+//       Serial.printf("GP: Path reversed to start closer to target vertex %d.\n", startVertexIndex);
+//     }
+//   }
+
+//   // 8. Vẽ đường đi cuối cùng lên HMI
+//   // ... (Logic này giữ nguyên) ...
+//   if (final_path_points.size() >= 2)
+//   {
+//     Serial.println(F("GP: Drawing final path..."));
+//     hmi_display.drawPointMarker(final_path_points.front(), GREEN); // Vẽ điểm đầu tiên
+//     // hmi_display.drawPic(final_path_points.front().x - TRACTOR_PIC_WIDTH / 2, final_path_points.front().y - TRACTOR_PIC_HEIGHT / 2, TRACTOR_PIC_ID_DEFAULT);
+//     hmi.visPic(25, 1);
+//     String command = "p1.x=" + String((int)(final_path_points.front().x - TRACTOR_PIC_FIXED_WIDTH / 2));
+//     hmi.sendCommand(command);
+//     command = "p1.y=" + String((int)(final_path_points.front().y - TRACTOR_PIC_FIXED_HEIGHT / 2));
+//     hmi.sendCommand(command);
+//     g_final_path_points = final_path_points;
+//     for (size_t i = 0; i < final_path_points.size() - 1; ++i)
+//     {
+//       hmi_display.drawLine(final_path_points[i], final_path_points[i + 1], YELLOW);
+//     }
+//     hmi_display.drawPointMarker(final_path_points.back(), RED); // Vẽ điểm cuối cùng
+//   }
+//   else
+//   {
+//     Serial.println(F("GP: Loi - Duong di cuoi cung khong du diem de ve."));
+//   }
+//   Serial.println(F("GP: Path generation and drawing function finished."));
+// }
 
 void updateAndDrawTractorPositionHMI()
 {
@@ -944,7 +1332,7 @@ void updateAndDrawTractorPositionHMI()
   Point new_tractor_center_screen = transformGpsToScreen(ekf_pos_as_gps);
 
   // Bước 3: Xác định ID ảnh máy cày dựa trên góc yaw từ EKF (ekf.x[4] là radian)
-  double current_yaw_rad = ekf_theta;               // Góc yaw từ EKF (radian), đã được chuẩn hóa trong [-PI, PI]
+  double current_yaw_rad = ekf_theta;                // Góc yaw từ EKF (radian), đã được chuẩn hóa trong [-PI, PI]
   double current_yaw_deg = degrees(current_yaw_rad); // Chuyển sang độ, sẽ trong [-180, 180]
 
   // Chuẩn hóa yaw về khoảng [0.0, 360.0)
@@ -988,8 +1376,8 @@ void updateAndDrawTractorPositionHMI()
     }
   }
   if (g_final_path_points.size() >= 2)
-  {                                                                  // Đường đi zigzag
-    hmi.drawPointMarker(g_final_path_points.front(), GREEN);         // Điểm bắt đầu đường đi
+  {                                                          // Đường đi zigzag
+    hmi.drawPointMarker(g_final_path_points.front(), GREEN); // Điểm bắt đầu đường đi
     for (size_t i = 0; i < g_final_path_points.size() - 1; ++i)
     {
       hmi.drawLine(g_final_path_points[i], g_final_path_points[i + 1], YELLOW);
