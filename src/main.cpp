@@ -114,23 +114,24 @@ void initialize_ekf_parameters()
   do
   {
     Serial.printf("snow: %d, latitude: %.6f, longitude: %.6f\n", g_svnum, g_latitude, g_longitude);
-    
+
   } while (g_svnum < 10 && g_latitude == 0.0 && g_longitude == 0.0);
   initYAW = radians(g_yaw);
   ekf.x[0] = 0.0; // x_pos
-  ekf.x[1] = 0.0;            // y_pos
-  ekf.x[2] = 0.0;            // vx
-  ekf.x[3] = 0.0;            // vy
+  ekf.x[1] = 0.0; // y_pos
+  ekf.x[2] = 0.0; // vx
+  ekf.x[3] = 0.0; // vy
   ekf.x[4] = 0.0; // theta (yaw) tính bằng radian
-  
+
   lat_origin = g_latitude;
   lon_origin = g_longitude; // Lưu tọa độ gốc ban đầu từ GPS
+  meters_per_deg_lon = 111320.0 * cos(radians(lat_origin));
   origin_set = true;        // Đặt cờ gốc đã được thiết lập
   _float_t pdiag[EKF_N] = {
-      0.001, // P_x: phương sai của vị trí x (m^2)
-      0.001, // P_y: phương sai của vị trí y (m^2)
-      0.001, // P_vx: phương sai của vận tốc x ((m/s)^2)
-      0.001, // P_vy: phương sai của vận tốc y ((m/s)^2)
+      2.0, // P_x: phương sai của vị trí x (m^2)
+      2.0, // P_y: phương sai của vị trí y (m^2)
+      0.5, // P_vx: phương sai của vận tốc x ((m/s)^2)
+      0.5, // P_vy: phương sai của vận tốc y ((m/s)^2)
       0.01   // P_theta: phương sai của góc yaw (radians^2)
   };
   ekf_initialize(&ekf, pdiag);
@@ -147,28 +148,53 @@ void calculate_state_transition_fx(
     _float_t yaw_rate,                  // Tốc độ góc quay (body frame)
     _float_t delta_t)                   // Khoảng thời gian dt
 {
-  _float_t prev_x_pos = current_x[0];
-  _float_t prev_y_pos = current_x[1];
-  _float_t prev_vx = current_x[2];
-  _float_t prev_vy = current_x[3];
-  _float_t prev_theta = current_x[4];
+  // Lấy các giá trị từ trạng thái trước đó
+  const _float_t prev_x_pos = current_x[0];
+  const _float_t prev_y_pos = current_x[1];
+  const _float_t prev_vx = current_x[2];
+  const _float_t prev_vy = current_x[3];
+  const _float_t prev_theta = current_x[4];
 
-  _float_t c_th = cos(prev_theta);
-  _float_t s_th = sin(prev_theta);
+  // --- Bước 1: Dự đoán góc quay (Yaw) mới ---
+  // Góc mới là góc cũ cộng với tốc độ góc nhân với thời gian.
+  // Đây là cách dự đoán đúng trong EKF, thay vì gán trực tiếp từ cảm biến.
+  _float_t next_theta = prev_theta + yaw_rate * delta_t;
 
-  // Chuyển đổi gia tốc từ body frame sang world frame
-  // ax_world = ax_body * cos(theta) - ay_body * sin(theta)
-  // ay_world = ax_body * sin(theta) + ay_body * cos(theta)
-  _float_t ax_world = acc_x_b * c_th - acc_y_b * s_th;
-  _float_t ay_world = acc_x_b * s_th + acc_y_b * c_th;
+  // Chuẩn hóa góc về khoảng [-PI, PI] để tránh giá trị góc quá lớn
+  next_theta = fmod(next_theta + M_PI, 2.0 * M_PI) - M_PI;
+  if (next_theta < -M_PI)
+  {
+    next_theta += 2.0 * M_PI;
+  }
+  fx[4] = next_theta;
 
-  // Phương trình dự đoán trạng thái (mô hình động học cơ bản)
-  fx[0] = prev_x_pos + prev_vx * delta_t + 0.5 * ax_world * delta_t * delta_t; // x_pos
-  fx[1] = prev_y_pos + prev_vy * delta_t + 0.5 * ay_world * delta_t * delta_t; // y_pos
-  fx[2] = prev_vx + ax_world * delta_t;                                        // vx
-  fx[3] = prev_vy + ay_world * delta_t;                                        // vy
-  // fx[4] = prev_theta + yaw_rate * delta_t;                                     // theta
-  fx[4] = radians(g_yaw) - initYAW; // Đảm bảo theta được đặt theo góc yaw từ GPS
+  // --- Bước 2: Dự đoán vận tốc dọc thân xe (forward speed) mới ---
+  // Tính vận tốc dọc thân xe hiện tại từ các thành phần vận tốc trong hệ tọa độ thế giới
+  _float_t prev_v = prev_vx * cos(prev_theta) + prev_vy * sin(prev_theta);
+
+  // Dự đoán vận tốc dọc thân xe tiếp theo bằng gia tốc
+  _float_t next_v = prev_v + acc_x_b * delta_t;
+
+  // --- Bước 3: Dự đoán vị trí mới (x, y) bằng mô hình động học chính xác ---
+  // Mô hình này cho kết quả chính xác khi xe di chuyển theo cung tròn (khi yaw_rate != 0)
+  // hoặc đường thẳng (khi yaw_rate == 0).
+  if (fabs(yaw_rate) > 1e-6) // Trường hợp xe đang quay (chuyển động cong)
+  {
+    _float_t turn_radius = next_v / yaw_rate; // Bán kính của cung tròn
+    fx[0] = prev_x_pos + turn_radius * (sin(next_theta) - sin(prev_theta));
+    fx[1] = prev_y_pos - turn_radius * (cos(next_theta) - cos(prev_theta)); // Chú ý dấu trừ
+  }
+  else // Trường hợp xe đi thẳng
+  {
+    fx[0] = prev_x_pos + next_v * cos(prev_theta) * delta_t;
+    fx[1] = prev_y_pos + next_v * sin(prev_theta) * delta_t;
+  }
+
+  // --- Bước 4: Dự đoán các thành phần vận tốc trong hệ tọa độ thế giới (vx, vy) ---
+  // Vận tốc trong hệ tọa độ thế giới được tính trực tiếp từ vận tốc dọc thân xe (next_v) và góc yaw mới.
+  // Điều này đảm bảo vector vận tốc luôn cùng hướng với xe, tuân thủ ràng buộc của xe vi sai.
+  fx[2] = next_v * cos(next_theta);
+  fx[3] = next_v * sin(next_theta);
 }
 
 void calculate_jacobian_F(
@@ -366,101 +392,132 @@ void handleSerialInput()
     // printCurrentParameters();
   }
 }
+
 bool ExternKalmanFilter()
 {
+  // --- Tính toán dt và xử lý các giá trị không hợp lệ ---
   unsigned long current_time_us = micros();
   dt = (current_time_us - last_time_us) / 1000000.0; // Chuyển từ microseconds sang seconds
   last_time_us = current_time_us;
 
-  // Tránh dt quá nhỏ hoặc bằng 0, có thể gây lỗi chia cho 0
-  if (dt <= 1e-6)
+  // Tối ưu 1: Bỏ qua chu kỳ nếu dt quá nhỏ, tránh dự đoán với giá trị không đáng tin cậy.
+  if (dt < 1e-5) // Ngưỡng nhỏ hơn một chút so với 1e-6 để ổn định hơn
   {
-    dt = 0.001; // Đặt giá trị dt mặc định nhỏ nếu cần
+    return false; // Trả về false để báo hiệu chu kỳ này không được thực thi
   }
 
-  // 1. Đọc dữ liệu IMU (Đầu vào Điều khiển)
-  // read_imu_data(); // Cập nhật ax_body, ay_body, omega_body
+  // --- Bước Dự đoán (Luôn chạy) ---
+  // Các ma trận này phụ thuộc vào trạng thái và dt, cần được tính toán mỗi lần.
+  _float_t fx[EKF_N];
+  _float_t F[EKF_N * EKF_N];
+  _float_t Q[EKF_N * EKF_N];
 
-  // 2. Bước Dự đoán của EKF (EKF Prediction Step)
-  _float_t fx[EKF_N];        // Trạng thái dự đoán
-  _float_t F[EKF_N * EKF_N]; // Jacobian của hàm chuyển đổi trạng thái
-  _float_t Q[EKF_N * EKF_N]; // Ma trận nhiễu quá trình
-  // Serial.printf("g_ax_body: %f, g_ay_body: %f, g_omega_body: %f, dt: %f\n",
-  //               g_ax_body, g_ay_body, g_omega_body, dt);
   calculate_state_transition_fx(fx, ekf.x, g_ax_body, g_ay_body, g_omega_body, dt);
   calculate_jacobian_F(F, ekf.x, g_ax_body, g_ay_body, dt);
-  get_process_noise_Q(Q, dt); // Q có thể phụ thuộc vào dt
+  get_process_noise_Q(Q, dt);
 
-  ekf_predict(&ekf, fx, F, Q); // Hàm từ tinyekf.h
+  ekf_predict(&ekf, fx, F, Q);
 
-  // Chuẩn hóa góc theta trong trạng thái ekf.x về khoảng [-PI, PI]
+  // Chuẩn hóa góc yaw trong trạng thái về khoảng [-PI, PI]
   ekf.x[4] = fmod(ekf.x[4] + M_PI, 2.0 * M_PI) - M_PI;
   if (ekf.x[4] < -M_PI)
   {
     ekf.x[4] += 2.0 * M_PI;
   }
+
+  // --- Bước Cập nhật (Chỉ chạy khi có dữ liệu GPS mới và hợp lệ) ---
   if (origin_set && revce_flag && g_svnum > 10)
   {
-    // Serial.printf("T2: %.3f, X: %.2f, Y: %.2f, Vx: %.2f, Vy: %.2f, Th(deg): %.1f",
-    // millis() / 1000.0, ekf.x[0], ekf.x[1], ekf.x[2], ekf.x[3], ekf.x[4] * 180.0 / M_PI);
+    revce_flag = false; // Xử lý cờ ngay lập tức để tránh thực hiện lại
+
+    // --- Tối ưu 2: Sử dụng biến `static` cho các ma trận không thay đổi hoặc ít thay đổi ---
+    // Các ma trận này sẽ chỉ được cấp phát bộ nhớ một lần duy nhất.
+    static _float_t H_jac[EKF_M * EKF_N];
+    static _float_t R_noise[EKF_M * EKF_M];
+    static bool is_ekf_matrices_initialized = false;
+
+    // Ma trận H là hằng số trong mô hình này, chỉ cần tính một lần.
+    if (!is_ekf_matrices_initialized)
+    {
+      get_jacobian_H(H_jac);
+      is_ekf_matrices_initialized = true;
+    }
+
+    // Ma trận R chỉ phụ thuộc vào các tham số có thể điều chỉnh.
+    // Việc tính lại mỗi lần cập nhật là chấp nhận được và đảm bảo R luôn đúng.
+    get_measurement_noise_R(R_noise);
+
+    // --- Chuẩn bị vector đo lường Z ---
     gps_x = (g_longitude - lon_origin) * meters_per_deg_lon;
     gps_y = (g_latitude - lat_origin) * METERS_PER_DEG_LAT;
-
-    // Chuyển đổi g_groundSpeed từ km/h sang m/s
     _float_t ground_speed_mps = g_groundSpeed * 1000.0 / 3600.0;
-    // Chuyển đổi g_heading từ độ sang radian
-    // _float_t heading_rad = g_heading * M_PI / 180.0;
     _float_t heading_rad = g_yaw * M_PI / 180.0;
-    // Tính toán gps_vx và gps_vy
-    // Giả sử heading là góc so với hướng Bắc, theo chiều kim đồng hồ
-    // vx (Đông) = speed * sin(heading)
-    // vy (Bắc)  = speed * cos(heading)
     gps_vx = ground_speed_mps * sin(heading_rad);
     gps_vy = ground_speed_mps * cos(heading_rad);
-    // Serial.printf(" Vx: %.2f, Vy: %.2f\n", gps_vx, gps_vy);
-    // 3. Kiểm tra dữ liệu GPS (Phép đo) & Bước Cập nhật của EKF (EKF Update Step)
-    // Thư viện SparkFun cần gọi checkUblox() định kỳ để xử lý dữ liệu I2C đến và kích hoạt callbacks.
+    _float_t z[EKF_M] = {gps_x, gps_y, gps_vx, gps_vy};
 
-    _float_t z[EKF_M] = {gps_x, gps_y, gps_vx, gps_vy}; // Vector đo lường thực tế
-    _float_t hx[EKF_M];                                 // Phép đo dự đoán
-    _float_t H[EKF_M * EKF_N];                          // Jacobian của hàm đo lường
-    _float_t R_matrix[EKF_M * EKF_M];                   // Ma trận nhiễu đo lường
-
+    // --- Kiểm tra Mahalanobis để loại bỏ phép đo nhiễu ---
+    _float_t hx[EKF_M];
     calculate_measurement_prediction_hx(hx, ekf.x);
-    get_jacobian_H(H);
-    get_measurement_noise_R(R_matrix);
 
-    if (ekf_update(&ekf, z, hx, H, R_matrix))
-    {                       // Hàm từ tinyekf.h
-      ekf_x = ekf.x[0];     // Cập nhật biến toàn cục ekf_x
-      ekf_y = ekf.x[1];     // Cập nhật biến toàn cục ekf_y
-      ekf_vx = ekf.x[2];    // Cập nhật biến toàn cục ekf_vx
-      ekf_vy = ekf.x[3];    // Cập nhật biến toàn cục ekf_vy
-      ekf_theta = ekf.x[4]; // Cập nhật biến toàn cục ekf_theta
-      return true;
+    // Sử dụng các biến static cho các ma trận tạm thời trong tính toán Mahalanobis
+    static _float_t y_innovation[EKF_M], S_inv[EKF_M * EKF_M];
+    mat_sub(z, hx, y_innovation, EKF_M, 1);
+
+    // Tính S = H * P_pred * H^T + R
+    _float_t S_innovation_cov[EKF_M * EKF_M]; // Khai báo cục bộ vì nó thay đổi nhiều
+    _float_t H_P_pred[EKF_M * EKF_N];
+    _float_t HT_jac[EKF_N * EKF_M];
+    mat_mul(H_jac, ekf.P, H_P_pred, EKF_M, EKF_N, EKF_N);
+    mat_transpose(H_jac, HT_jac, EKF_M, EKF_N);
+    mat_mul(H_P_pred, HT_jac, S_innovation_cov, EKF_M, EKF_N, EKF_M);
+    mat_add(S_innovation_cov, R_noise, S_innovation_cov, EKF_M, EKF_M);
+
+    if (!mat_inv_gj(S_innovation_cov, S_inv, EKF_M))
+    {
+      Serial.println("Mahalanobis: Khong the nghich dao ma tran S! Bo qua cap nhat.");
+      return true; // Vẫn trả về true vì đã xử lý thành công chu kỳ, chỉ bỏ qua update
+    }
+
+    // Tính Mahalanobis distance squared: d_sq = y^T * S_inv * y
+    _float_t S_inv_y[EKF_M];
+    mat_mul_vec(S_inv, y_innovation, S_inv_y, EKF_M, EKF_M);
+    _float_t mahalanobis_sq_dist = 0;
+    for (int i = 0; i < EKF_M; ++i)
+    {
+      mahalanobis_sq_dist += y_innovation[i] * S_inv_y[i];
+    }
+
+    // So sánh với ngưỡng và thực hiện cập nhật
+    if (mahalanobis_sq_dist < MAHALANOBIS_CHI2_THRESHOLD_4DOF_95PCT)
+    {
+      if (ekf_update(&ekf, z, hx, H_jac, R_noise))
+      {
+        // Cập nhật các biến toàn cục sau khi cập nhật thành công
+        ekf_x = ekf.x[0];
+        ekf_y = ekf.x[1];
+        ekf_vx = ekf.x[2]; // Cập nhật cả vận tốc
+        ekf_vy = ekf.x[3];
+        ekf_theta = ekf.x[4];
+      }
+      else
+      {
+        Serial.println("EKF Update That bai (loi nghich dao ma tran ben trong)");
+        // Tối ưu 3: Thay vì reset ngay, chỉ cần bỏ qua cập nhật.
+        // Reset chỉ nên xảy ra nếu lỗi kéo dài.
+      }
     }
     else
     {
-      Serial.println("EKF Update That bai (co the do loi nghich dao ma tran)");
-      delay(5000);
-      initialize_ekf_parameters();
-      return false;
+      Serial.printf("Phep do GPS bi loai bo boi Mahalanobis (%.2f > %.2f)\n",
+                    mahalanobis_sq_dist, MAHALANOBIS_CHI2_THRESHOLD_4DOF_95PCT);
+      // Không cập nhật EKF với phép đo này.
+      // Không cần reset EKF ở đây vì đây là trường hợp ngoại lệ dự kiến.
     }
-    revce_flag = false; // Reset cờ sau khi xử lý
-
-    // 4. In trạng thái đã tổng hợp (tùy chọn)
-    // Serial.printf("Snum %d, Lat: %.6f, Lon: %.6f", g_svnum, g_latitude-lat_origin, g_longitude-lon_origin);
-    
-
-    // delay(10); // Độ trễ vòng lặp, điều chỉnh nếu cần. IMU thường chạy nhanh, GPS chậm hơn.
-    // Dự đoán nên chạy ở tốc độ của IMU, cập nhật ở tốc độ của GPS.
   }
-  else
-  {
-    Serial.println("Khong co du lieu GPS hop le de cap nhat EKF.");
-    return false; // Không có dữ liệu GPS hợp lệ để cập nhật EKF
-  }
+  return true; // Trả về true nếu hàm đã chạy xong một chu kỳ dự đoán
 }
+
 // Hàm setup và loop giữ nguyên
 void setup()
 {
@@ -495,9 +552,9 @@ void setup()
   // 0.1,0.01,0.01,0.61
   // 0.1,0.01,0.01,0.02
   // 0.1,0.001,1.0,0.6
-  g_sigma_accel_process = 0.01;
-  g_sigma_omega_process = 0.001;
-  g_std_dev_gps_pos = 0.1;
+  g_sigma_accel_process = 0.1;
+  g_sigma_omega_process = 0.01;
+  g_std_dev_gps_pos = 5.0;
   g_std_dev_gps_vel = 0.61;
 
   hmi.fillRect(0, 0, SCREEN_WIDTH_PX, SCREEN_HEIGHT_PX, SCREEN_BACKGROUND_COLOR);
@@ -524,7 +581,7 @@ void loop()
     handlePointInput();
     break;
   case POINTS_ENTERED_READY_TO_DRAW:
-    meters_per_deg_lon = 111320.0 * cos(radians(g_latitude)); // Khoảng cách mét trên mỗi độ kinh độ
+     // Khoảng cách mét trên mỗi độ kinh độ
     initialize_ekf_parameters();
     drawFieldAndPath();
     currentState = PATH_DISPLAYED;
@@ -538,9 +595,9 @@ void loop()
     }
     // delay(100); // Đợi 100 mili giây trước khi tiếp tục
     // handlePointInput();                // Tiếp tục lắng nghe lệnh 'clear', 'change...'
-    
+
     // readAndProcessGpsData();           // Đọc dữ liệu GPS (mô phỏng hoặc thực tế)
-    Serial.printf("distan lat: %.6f, lon: %.6f\n", (g_latitude - lat_origin) * METERS_PER_DEG_LAT, (g_longitude - lon_origin)* meters_per_deg_lon);
+    Serial.printf("distan lat: %.6f, lon: %.6f\n", (g_latitude - lat_origin) * METERS_PER_DEG_LAT, (g_longitude - lon_origin) * meters_per_deg_lon);
     ExternKalmanFilter(); // Chạy bộ lọc Kalman mở rộng (EKF)
     Serial.printf("  T: %.3f, X: %.2f, Y: %.2f, Vx: %.2f, Vy: %.2f, Th(deg): %.1f\n",
                   millis() / 1000.0, ekf.x[0], ekf.x[1], ekf.x[2], ekf.x[3], ekf.x[4] * 180.0 / M_PI);
@@ -586,6 +643,4 @@ void loop()
     command = "t19.txt=\"" + String(ekf.x[1], 2) + "\"";
     hmi.sendCommand(command); // Gửi lệnh cập nhật hướng GPS lên HMI
   }
-
-  
 }
